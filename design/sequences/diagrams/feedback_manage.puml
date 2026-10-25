@@ -1,0 +1,39 @@
+@startuml feedback_manage
+!pragma layout smetana
+' 開発者が改善意見の一覧を開き、状態・メモを変える流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "開発者" as dev
+participant "FeedbackListPage" as page
+participant "isDeveloperProvider" as isDev
+participant "allFeedbackProvider" as all
+participant "FeedbackRepository" as repo
+database "Firestore" as fs
+actor "送った家族" as sender
+
+dev -> page : /feedback を開く
+page -> isDev : 開発者かどうかの判定
+alt 開発者でない
+  isDev --> page : false
+  page -> dev : 「このページを見る権限がありません」\n（一覧は読み込まない）
+else 開発者
+  isDev --> page : true
+  page -> all : 購読を始める
+  all -> repo : watchAll()
+  repo -> fs : snapshots（全件）
+  fs --> page : 新しい順の一覧
+  page -> dev : 一覧（初期値: 未対応で絞り込み）
+
+  dev -> page : 状態を「対応中」に変える
+  page -> repo : updateStatus(id, 対応中)
+  repo -> fs : update（status, statusUpdatedAt）
+
+  dev -> page : 「メモを編集」→ 入力して保存
+  page -> repo : updateMemo(id, メモ)
+  repo -> fs : update（devMemo, statusUpdatedAt）
+
+  fs --> page : snapshots（一覧に反映）
+  fs --> sender : snapshots（送った意見に状態とメモが表示される）
+end
+@enduml

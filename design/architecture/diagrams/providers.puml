@@ -20,6 +20,7 @@ rectangle "auth" {
   rectangle "deniedEmailProvider" as deniedEmail
   rectangle "currentMemberProvider\nStream: Member?" as currentMember
   rectangle "actorProvider" as actor
+  rectangle "isDeveloperProvider\nFuture: bool" as isDev
 }
 
 rectangle "items" {
@@ -34,6 +35,12 @@ rectangle "items" {
 
 rectangle "settings" {
   rectangle "appVersionProvider\nFuture: String" as version
+}
+
+rectangle "feedback" {
+  rectangle "feedbackRepositoryProvider" as fbRepo
+  rectangle "myFeedbackProvider\nStream: 自分の意見" as myFb
+  rectangle "allFeedbackProvider\nStream: すべての意見" as allFb
 }
 
 authRepo --> fa
@@ -61,11 +68,18 @@ count --> itemList
 myOrder --> currentUser : uid
 myOrder --> memberRepo
 offline --> currentUser : uid
+isDev --> currentUser
+isDev --> authRepo : 開発者かの判定
+myFb --> currentUser : uid
+myFb --> fbRepo
+allFb --> currentUser : uid
+allFb --> fbRepo
 
 router --> accessStatus : listen
 router --> deniedEmail : 拒否時に設定
 note bottom of offline
-  categoriesRepositoryProvider と isOfflineProvider も
+  categoriesRepositoryProvider・isOfflineProvider・
+  feedbackRepositoryProvider も
   firestoreProvider を使う（線は省略）。
   isOfflineProvider は items の
   キャッシュ状態を購読する。

@@ -115,7 +115,7 @@ Scaffold
 
 ### 設定（`SettingsPage`）
 
-- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
+- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、改善意見を送る（`/settings/feedback` へ移動）、改善意見の一覧（開発者用。`isDeveloperProvider` が true のときだけ表示し、`/feedback` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
 
 ### カテゴリ管理（`CategoriesPage`）
 
@@ -134,6 +134,45 @@ Scaffold
 - 並べ替え: `onReorderItem` で、移動先を「その他」より上に制限する。並べ終えたら `CategoriesRepository.reorder` で order を 1 から振り直す。
 - 削除: 確認ダイアログ「『〇〇』を削除しますか？ このカテゴリのアイテム N 件は『その他』に移動します」のあと、`CategoriesRepository.delete`。
 - 所属アイテム数は、存在しないカテゴリに属するアイテムを「その他」に数える（在庫一覧の表示に合わせる）。
+
+### 改善意見を送る（`SendFeedbackPage`）
+
+```
+Scaffold
+├─ AppBar「改善意見を送る」
+└─ body: ListView
+   ├─ 説明文
+   ├─ SegmentedButton（不具合 / 要望 / その他。初期値は要望）
+   ├─ TextField（本文。4〜8 行・最大 1000 文字の文字数カウンター付き）
+   ├─ FilledButton「送信」（本文が空・送信中は押せない）
+   └─ 送った意見（myFeedbackProvider）
+      └─ _MyFeedbackTile × 件数（Card: 種類・本文（3 行まで、タップで全文）・送った日時・状態・_DevMemo（開発者のメモがあれば））
+```
+
+- 送信は `FeedbackRepository.submit`。入力チェックは `validateFeedbackBody`（`feedback/domain/feedback_rules.dart`）。送った人は `actorProvider`、バージョンは `appVersionProvider`（取得できなければ「不明」）。
+- 成功したら本文を空にし、種類も「要望」に戻して「送信しました。ありがとうございます」と表示する。失敗したら入力内容を残して「送信できませんでした。通信状態を確認してください」と表示する。
+- 日時は `formatDateTime`（`core/utils/date_format.dart`。`YYYY/MM/DD HH:mm`。保存中で未確定なら「送信中」）で表示する。
+
+### 改善意見の一覧（`FeedbackListPage`）
+
+```
+Scaffold（HomeShell の外。ナビゲーションなし）
+├─ AppBar「改善意見の一覧（開発者用）」＋ 戻るボタン（/stock へ）
+└─ body: isDeveloperProvider の結果で切り替え
+   ├─ 判定中: インジケーター
+   ├─ 開発者でない・判定エラー: _NoPermission（「このページを見る権限がありません」＋ 在庫一覧へ戻るボタン）
+   └─ 開発者: _FeedbackList（中央寄せ・最大幅 960px）
+      ├─ 状態の ChoiceChip（すべて / 未対応 / 対応中 / 対応済み / 見送り。件数付き。初期値は未対応）
+      ├─ 種類の ChoiceChip（すべて / 不具合 / 要望 / その他）
+      └─ _FeedbackCard × 件数（新しい順）
+         ├─ 種類・状態の DropdownButton（選んだ時点で updateStatus）・︙メニュー「削除」（確認ダイアログの後 delete）
+         ├─ 本文（SelectableText。全文）
+         ├─ 送った人・送った日時・バージョン
+         └─ メモ ＋「メモを編集」→ _MemoDialog（最大 500 文字。「メモは送った本人にも表示されます」）
+```
+
+- 開発者でないときは `allFeedbackProvider` を購読しない（一覧を読み込まない）。
+- 状態チップの件数は、種類で絞り込んだ後の一覧から数える（`countByStatus`）。絞り込みは `filterFeedback`。
 
 ### メイン画面の枠（`HomeShell`）
 

@@ -38,6 +38,22 @@ class AuthRepository {
       rethrow;
     }
   }
+
+  /// 開発者（改善意見の一覧を使える家族）かどうかを判定する
+  Future<bool> isDeveloper(User user) async {
+    final email = user.email;
+    if (email == null || !user.emailVerified) return false;
+    try {
+      final doc = await _db
+          .collection('allowedUsers')
+          .doc(email.toLowerCase())
+          .get();
+      return doc.data()?['admin'] == true;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return false;
+      rethrow;
+    }
+  }
 }
 
 final authRepositoryProvider = Provider<AuthRepository>(

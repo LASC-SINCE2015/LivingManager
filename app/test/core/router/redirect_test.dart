@@ -34,6 +34,12 @@ void main() {
       expect(go(AccessStatus.allowed, '/settings'), isNull);
     });
 
+    test('改善意見の画面にもログイン後に戻れる', () {
+      expect(go(AccessStatus.signedOut, '/feedback'), '/login?from=%2Ffeedback');
+      expect(go(AccessStatus.allowed, '/login?from=%2Ffeedback'), '/feedback');
+      expect(go(AccessStatus.allowed, '/splash?from=%2Fsettings%2Ffeedback'), '/settings/feedback');
+    });
+
     test('許可されていなければ権限エラー画面へ', () {
       expect(go(AccessStatus.denied, '/splash?from=%2Fstock'), '/no_access');
       expect(go(AccessStatus.denied, '/no_access'), isNull);

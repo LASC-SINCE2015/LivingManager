@@ -68,3 +68,10 @@ final actorProvider = Provider<Member?>((ref) {
     displayName: member?.displayName ?? MemberRepository.initialName(user),
   );
 });
+
+/// 自分が開発者か（改善意見の一覧を使えるか）
+final isDeveloperProvider = FutureProvider<bool>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return false;
+  return ref.read(authRepositoryProvider).isDeveloper(user);
+});

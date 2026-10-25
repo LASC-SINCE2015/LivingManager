@@ -5,9 +5,13 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
+  where,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -15,6 +19,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 // テスト用のダミーアカウント（実在しないアドレス）
+// ALICE は開発者、BOB は一般の家族
 const ALICE = { uid: 'alice', email: 'allowed@example.com' };
 const BOB = { uid: 'bob', email: 'allowed2@example.com' };
 const MALLORY = { uid: 'mallory', email: 'denied@example.com' };
@@ -42,6 +47,20 @@ function newItem(user, overrides = {}) {
   };
 }
 
+function newFeedback(user, overrides = {}) {
+  return {
+    type: 'request',
+    body: '並び順を変えたい',
+    appVersion: '1.0.0+1',
+    byUid: user.uid,
+    byName: user.uid,
+    createdAt: serverTimestamp(),
+    status: 'open',
+    devMemo: '',
+    ...overrides,
+  };
+}
+
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: 'demo-living-manager',
@@ -57,9 +76,10 @@ beforeEach(async () => {
   await testEnv.clearFirestore();
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
-    await setDoc(doc(db, 'allowedUsers', ALICE.email), { memo: 'test' });
+    await setDoc(doc(db, 'allowedUsers', ALICE.email), { memo: 'test', admin: true });
     await setDoc(doc(db, 'allowedUsers', BOB.email), { memo: 'test' });
     await setDoc(doc(db, 'categories', 'other'), { name: 'その他', order: 9999 });
+    await setDoc(doc(db, 'feedback', 'fromBob'), newFeedback(BOB, { createdAt: new Date() }));
     await setDoc(doc(db, 'items', 'sample'), {
       ...newItem(ALICE),
       createdAt: new Date(),
@@ -161,5 +181,55 @@ describe('items', () => {
   it('担当だけを変えるときは更新者を変えなくてよい', async () => {
     const purchase = { state: 'in_cart', byUid: BOB.uid, byName: 'ボブ', at: serverTimestamp() };
     await assertSucceeds(updateDoc(doc(dbOf(BOB), 'items', 'sample'), { purchase }));
+  });
+});
+
+describe('feedback', () => {
+  it('家族は改善意見を送れる', async () => {
+    await assertSucceeds(setDoc(doc(dbOf(BOB), 'feedback', 'new'), newFeedback(BOB)));
+  });
+
+  it('許可されていないユーザーは送れない', async () => {
+    await assertFails(setDoc(doc(dbOf(MALLORY), 'feedback', 'new'), newFeedback(MALLORY)));
+  });
+
+  it('送るときに状態やメモを指定できない・他人の名義にできない', async () => {
+    const db = dbOf(BOB);
+    await assertFails(setDoc(doc(db, 'feedback', 'a'), newFeedback(BOB, { status: 'done' })));
+    await assertFails(setDoc(doc(db, 'feedback', 'b'), newFeedback(BOB, { devMemo: 'x' })));
+    await assertFails(setDoc(doc(db, 'feedback', 'c'), newFeedback(ALICE)));
+    await assertFails(setDoc(doc(db, 'feedback', 'd'), newFeedback(BOB, { body: '' })));
+  });
+
+  it('一般の家族は自分の意見だけ読める', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'feedback', 'fromAlice'), newFeedback(ALICE, { createdAt: new Date() }));
+    });
+    const db = dbOf(BOB);
+    await assertSucceeds(getDoc(doc(db, 'feedback', 'fromBob')));
+    await assertSucceeds(getDocs(query(collection(db, 'feedback'), where('byUid', '==', BOB.uid))));
+    await assertFails(getDoc(doc(db, 'feedback', 'fromAlice')));
+    await assertFails(getDocs(collection(db, 'feedback')));
+  });
+
+  it('開発者はすべて読める', async () => {
+    await assertSucceeds(getDocs(collection(dbOf(ALICE), 'feedback')));
+  });
+
+  it('状態とメモを変えられるのは開発者だけ', async () => {
+    const change = { status: 'in_progress', devMemo: '対応します', statusUpdatedAt: serverTimestamp() };
+    await assertFails(updateDoc(doc(dbOf(BOB), 'feedback', 'fromBob'), change));
+    await assertSucceeds(updateDoc(doc(dbOf(ALICE), 'feedback', 'fromBob'), change));
+  });
+
+  it('開発者でも本文は変えられず、不正な状態にもできない', async () => {
+    const ref = doc(dbOf(ALICE), 'feedback', 'fromBob');
+    await assertFails(updateDoc(ref, { body: '書き換え' }));
+    await assertFails(updateDoc(ref, { status: 'unknown' }));
+  });
+
+  it('削除できるのは開発者だけ', async () => {
+    await assertFails(deleteDoc(doc(dbOf(BOB), 'feedback', 'fromBob')));
+    await assertSucceeds(deleteDoc(doc(dbOf(ALICE), 'feedback', 'fromBob')));
   });
 });
