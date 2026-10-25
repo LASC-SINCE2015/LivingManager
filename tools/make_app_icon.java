@@ -18,8 +18,13 @@ import javax.imageio.ImageIO;
  *   java tools/make_app_icon.java app/web
  *
  * 512×512 の座標で描き、出力サイズに合わせて拡大・縮小する。
+ *
+ * ファイル名には VERSION を入れる。ホーム画面に追加済みのアプリは同じ URL の画像を
+ * 使い続けるため、絵を変えたら VERSION を上げ、manifest.json と index.html の参照も変える。
  */
 public class make_app_icon {
+  static final String VERSION = "v2";
+
   static final Color BG_TOP = new Color(0x8CC4AE);
   static final Color BG_BOTTOM = new Color(0x4F8A78);
   static final Color HOUSE = new Color(0xFFF8EC);
@@ -30,11 +35,14 @@ public class make_app_icon {
 
   public static void main(String[] args) throws Exception {
     File web = new File(args.length > 0 ? args[0] : "app/web");
-    write(new File(web, "icons/Icon-192.png"), 192, false);
-    write(new File(web, "icons/Icon-512.png"), 512, false);
-    write(new File(web, "icons/Icon-maskable-192.png"), 192, true);
-    write(new File(web, "icons/Icon-maskable-512.png"), 512, true);
-    write(new File(web, "favicon.png"), 32, false);
+    String prefix = "icons/icon-" + VERSION + "-";
+    write(new File(web, prefix + "192.png"), 192, false);
+    write(new File(web, prefix + "512.png"), 512, false);
+    write(new File(web, prefix + "maskable-192.png"), 192, true);
+    write(new File(web, prefix + "maskable-512.png"), 512, true);
+    // iPhone は透明な部分を黒く塗るので、端まで背景を塗った絵にする（角は iPhone が丸める）
+    write(new File(web, prefix + "apple-180.png"), 180, true);
+    write(new File(web, prefix + "favicon-32.png"), 32, false);
   }
 
   /** maskable は端まで背景で塗り、絵は切り取られない中央 80% に収める */
