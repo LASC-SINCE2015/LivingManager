@@ -8,13 +8,14 @@
 |---|---|---|
 | `/splash` | `SplashPage` | 判定中・準備中のインジケーター。判定に失敗したら「再試行」「ログアウト」 |
 | `/login` | `LoginPage` | |
-| `/no_access` | `NoAccessPage` | 表示した時点で自動的にサインアウトする |
+| `/no_access` | `NoAccessPage` | 管理者への追加の依頼ができるよう、ログインしたままにする（「別のアカウントでログイン」でサインアウト） |
 | `/stock` | `StockPage` | タブ 1。起動時の `initialLocation` |
 | `/shopping_list` | `ShoppingListPage` | タブ 2 |
 | `/settings` | `SettingsPage` | タブ 3 |
 | `/settings/categories` | `CategoriesPage` | カテゴリ管理。`/settings` の下のルート（タブ 3 の中で開く） |
 | `/settings/feedback` | `SendFeedbackPage` | 改善意見を送る。`/settings` の下のルート（タブ 3 の中で開く） |
 | `/feedback` | `FeedbackListPage` | 改善意見の一覧（開発者用）。タブの外の独立したページで、ナビゲーションは表示しない。開発者でなければ「このページを見る権限がありません」を表示する |
+| `/users` | `UsersPage` | ユーザー管理（開発者用）。追加の依頼の承認・却下と、許可済みのアカウントの一覧。`/feedback` と同じくタブの外の独立したページで、開発者でなければ「このページを見る権限がありません」を表示する |
 
 - タブ 1〜3 は `StatefulShellRoute.indexedStack` でまとめ、`HomeShell` がナビゲーションを表示する。画面幅が 768px 以上なら画面左の `NavigationRail`（ラベル付き）、それ未満は画面下部の `NavigationBar`。タブを切り替えても各タブの状態（スクロール位置など）は保たれる。選択中のタブをもう一度押すと、そのタブの最初の画面に戻る。
 - 買い物リストのタブには、`shoppingCountProvider` の件数を `Badge` で表示する（0 件のときは非表示）。`NavigationRail` でも同じ。
@@ -47,17 +48,17 @@
 
 行 = 状態、列 = 現在地。「―」はそのまま（移動しない）。
 
-| 状態 ＼ 現在地 | `/splash` | `/login` | `/no_access` | タブの画面・`/feedback` |
+| 状態 ＼ 現在地 | `/splash` | `/login` | `/no_access` | タブの画面・`/feedback`・`/users` |
 |---|---|---|---|---|
 | `checking` / `error` | ― | `/splash` | ― | `/splash` |
 | `signedOut` | `/login` | ― | ― | `/login` |
 | `denied` | `/no_access` | `/no_access` | ― | `/no_access` |
 | `allowed` | 戻り先 | 戻り先 | 戻り先 | ― |
 
-- `/no_access` は、判定中・未ログインでもそのまま表示し続ける。アクセス権限エラー画面は表示後に自動でサインアウトするため、状態が `denied` → `checking` → `signedOut` と変わっても画面が切り替わらないようにしている。
-- `denied` になったとき、`appRouterProvider` がそのときのメールアドレスを `deniedEmailProvider` に入れる（アクセス権限エラー画面に表示するため。URL には入れない）。「別のアカウントでログイン」を押すと、`deniedEmailProvider` を空にして `/login` へ移動する。
+- `/no_access` は、判定中・未ログインでもそのまま表示し続ける。アクセス権限エラー画面では、ログインしたまま「もう一度確認する」（`accessCheckProvider` を作り直す）で `denied` → `checking` → `denied` / `allowed` と変わることや、「別のアカウントでログイン」でサインアウトして `signedOut` になることがあり、その途中で画面が切り替わらないようにしている。承認されていて `allowed` になったときだけ、戻り先（なければ `/stock`）へ移動する。
+- `denied` になったとき、`appRouterProvider` がそのときのメールアドレスを `deniedEmailProvider` に入れる（アクセス権限エラー画面に表示するため。URL には入れない）。「別のアカウントでログイン」を押すと、サインアウトしてから `deniedEmailProvider` を空にし、`/login` へ移動する。
 - 「タブの画面」は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`。
-- `/feedback`（改善意見の一覧）も、ログインして利用を許可されていることが前提なので、タブの画面と同じ扱いになる。開発者かどうかは redirect では判定せず、ページの中で判定して表示を切り替える。
+- `/feedback`（改善意見の一覧）と `/users`（ユーザー管理）も、ログインして利用を許可されていることが前提なので、タブの画面と同じ扱いになる。開発者かどうかは redirect では判定せず、ページの中で判定して表示を切り替える。
 
 ### 戻り先（クエリ `from`）
 
@@ -65,7 +66,7 @@
 
 - `/splash`・`/login` へ送るとき、今いる画面が「戻ってよい画面」ならそのパスを `from` に入れる（例: `/login?from=%2Fshopping_list`）。今いる画面に `from` が付いていれば、それを引き継ぐ。
 - `allowed` になったとき、`from` があればその画面へ、なければ `/stock` へ移動する。
-- 戻ってよい画面は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`・`/feedback` の 6 つだけ（`returnablePaths`）。それ以外の値の `from` は無視する（外部の URL などへ誘導されないようにするため）。
+- 戻ってよい画面は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`・`/feedback`・`/users` の 7 つだけ（`returnablePaths`）。それ以外の値の `from` は無視する（外部の URL などへ誘導されないようにするため）。
 - `from` にはパスだけを入れ、メールアドレスなどの個人情報は入れない。
 - 設定画面からログアウトすると `from=/settings` が付くため、次にログインしたときは設定画面に戻る。
 
@@ -76,7 +77,9 @@
 | 起動（ログイン済み・許可あり） | `checking` → `allowed` | 開いた画面（例: `/stock`） → `/splash?from=/stock` → `/stock` |
 | 起動（未ログイン） | `checking` → `signedOut` | `/splash?from=…` → `/login?from=…` |
 | ログイン（許可あり） | `signedOut` → `checking` → `allowed` | `/login?from=…` → `/splash?from=…` → 戻り先（なければ `/stock`） |
-| ログイン（許可なし） | `signedOut` → `checking` → `denied` → `checking` → `signedOut` | `/login` → `/splash` → `/no_access`（以後そのまま） |
+| ログイン（許可なし） | `signedOut` → `checking` → `denied` | `/login` → `/splash` → `/no_access`（ログインしたまま。以後そのまま） |
+| 依頼の承認後に「もう一度確認する」 | `denied` → `checking` → `allowed` | `/no_access` → `/stock`（承認前なら `denied` に戻り `/no_access` のまま） |
+| 「別のアカウントでログイン」 | `denied` → `checking` → `signedOut` | `/no_access` → `/login` |
 | ログアウト（設定画面） | `allowed` → `checking` → `signedOut` | `/settings` → `/splash?from=/settings` → `/login?from=/settings` |
 | 未ログインで `/feedback` を開く | `checking` → `signedOut` → … → `allowed` | `/splash?from=/feedback` → `/login?from=/feedback` → ログイン → `/feedback` |
 | 判定に失敗 | `checking` → `error` | `/splash`（「再試行」で `accessCheckProvider` を作り直す） |

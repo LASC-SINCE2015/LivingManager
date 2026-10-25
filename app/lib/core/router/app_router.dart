@@ -13,6 +13,7 @@ import '../../features/items/presentation/stock_page.dart';
 import '../../features/settings/presentation/categories_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/shopping_list/presentation/shopping_list_page.dart';
+import '../../features/users/presentation/users_page.dart';
 import 'home_shell.dart';
 import 'redirect.dart';
 
@@ -44,6 +45,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: feedbackListPath,
         builder: (context, state) => const FeedbackListPage(),
       ),
+      // ユーザー管理（開発者用）も下部のタブを出さない独立したページ
+      GoRoute(path: usersPath, builder: (context, state) => const UsersPage()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             HomeShell(navigationShell: navigationShell),

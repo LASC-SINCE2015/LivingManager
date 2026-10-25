@@ -108,6 +108,14 @@ class SettingsPage extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.go('/feedback'),
             ),
+          if (isDeveloper)
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_outlined),
+              title: const Text('ユーザー管理（開発者用）'),
+              subtitle: const Text('追加の依頼の承認・現在のユーザー'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/users'),
+            ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

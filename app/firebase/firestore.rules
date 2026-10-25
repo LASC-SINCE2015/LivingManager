@@ -30,9 +30,32 @@ service cloud.firestore {
       return value is string && value.size() >= minLen && value.size() <= maxLen;
     }
 
-    // 許可リスト: 自分のドキュメントの有無だけ確認できる。変更はコンソールからのみ
+    // 許可リスト: 自分のドキュメントの有無だけ確認できる。
+    // 開発者は一覧を見て、追加の依頼を承認できる（追加のみ。変更・削除はコンソールから）
     match /allowedUsers/{email} {
-      allow get: if signedIn() && email == myEmail();
+      allow get: if (signedIn() && email == myEmail()) || isDeveloper();
+      allow list: if isDeveloper();
+      allow create: if isDeveloper()
+        && email == email.lower()
+        && request.resource.data.keys().hasOnly(['memo', 'admin', 'approvedAt'])
+        && isText(request.resource.data.memo, 0, 50)
+        && request.resource.data.admin is bool
+        && request.resource.data.approvedAt == request.time;
+    }
+
+    // 追加の依頼: 許可されていないアカウントが、自分のメールアドレスで 1 件だけ作れる。
+    // 開発者は一覧を見て、承認（許可リストへの追加と同時に削除）・却下（削除）できる
+    match /accessRequests/{email} {
+      allow get: if (signedIn() && email == myEmail()) || isDeveloper();
+      allow list: if isDeveloper();
+      allow create: if signedIn()
+        && email == myEmail()
+        && !isMember()
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'requestedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && isText(request.resource.data.displayName, 0, 50)
+        && request.resource.data.requestedAt == request.time;
+      allow delete: if isDeveloper();
     }
 
     // 家族メンバー: 自分のドキュメントだけ作成・更新できる

@@ -4,9 +4,9 @@
 
 | 層 | 役割 | 主なファイル |
 |---|---|---|
-| `domain/` | アプリの概念。Flutter・Firebase に依存しない | `Member`, `AccessStatus`, `StockStatus`, `Category`, `Item`, `Purchase`, `ClaimResult`、並び順の関数（`item_order.dart`）、カテゴリ名の入力チェック（`category_name_rules.dart`）、改善意見の `UserFeedback`・`FeedbackType`・`FeedbackStatus` と入力チェック・並べ替え・絞り込みの関数（`feedback_rules.dart`） |
-| `data/` | Firestore・Authentication との読み書き。Firestore のデータと domain のクラスを相互に変換する | `AuthRepository`, `MemberRepository`, `ItemsRepository`, `CategoriesRepository`, `FeedbackRepository` |
-| `presentation/` | 画面・ウィジェット・Riverpod の Provider | 各画面、`auth_providers.dart`, `items_providers.dart`, `connectivity_provider.dart`, `feedback_providers.dart` |
+| `domain/` | アプリの概念。Flutter・Firebase に依存しない | `Member`, `AccessStatus`, `StockStatus`, `Category`, `Item`, `Purchase`, `ClaimResult`、並び順の関数（`item_order.dart`）、カテゴリ名の入力チェック（`category_name_rules.dart`）、改善意見の `UserFeedback`・`FeedbackType`・`FeedbackStatus` と入力チェック・並べ替え・絞り込みの関数（`feedback_rules.dart`）、ユーザー管理の `AccessRequest`・`AllowedUser` とメモの入力チェック・並べ替えの関数（`user_rules.dart`） |
+| `data/` | Firestore・Authentication との読み書き。Firestore のデータと domain のクラスを相互に変換する | `AuthRepository`, `MemberRepository`, `ItemsRepository`, `CategoriesRepository`, `FeedbackRepository`, `UsersRepository` |
+| `presentation/` | 画面・ウィジェット・Riverpod の Provider | 各画面、`auth_providers.dart`, `items_providers.dart`, `connectivity_provider.dart`, `feedback_providers.dart`, `users_providers.dart` |
 
 - 依存の向きは `presentation → domain ← data`。画面は Repository を Provider 経由で使う。
 - `core/` はアプリ全体の土台（Firebase の Provider、画面遷移、テーマ、汎用の関数）。`shared/widgets/` は複数の機能で使うダイアログなど。
@@ -22,6 +22,9 @@
 | `settings/` | `items/` の data・domain・presentation | カテゴリ管理画面（カテゴリの読み書き・カテゴリ名の入力チェック） |
 | `settings/` | `feedback/` の presentation | 「改善意見を送る」「改善意見の一覧（開発者用）」への導線 |
 | `feedback/` | `auth/` の presentation、`settings/` の presentation | 送った人（`actorProvider`）・開発者かどうかの判定（`isDeveloperProvider`）・アプリのバージョン（`appVersionProvider`）を使うため |
+| `auth/presentation/no_access_page.dart` | `users/presentation/access_request_panel.dart` | アクセス権限エラー画面に「管理者に追加を依頼する」を出すため |
+| `users/` | `auth/` の presentation | ログイン中のユーザー（`currentUserProvider`）・開発者かどうか（`isDeveloperProvider`）・承認後の確認し直し（`accessCheckProvider`）を使うため |
+| `settings/` | `users/`（ルート `/users` への導線のみ） | 「ユーザー管理（開発者用）」への導線（コードの import はなく、パスで移動する） |
 | `core/router/` | 各機能の画面、`auth_providers.dart` | 画面遷移の定義と遷移先の判定 |
 
 ## 2. 全体像
@@ -35,7 +38,7 @@
 | Provider | 種類 | 内容 |
 |---|---|---|
 | `firebaseAuthProvider` / `firestoreProvider` | Provider | Firebase の各サービス（テストで差し替えられるよう Provider 経由で使う） |
-| `authRepositoryProvider` / `memberRepositoryProvider` / `itemsRepositoryProvider` / `categoriesRepositoryProvider` / `feedbackRepositoryProvider` | Provider | Repository |
+| `authRepositoryProvider` / `memberRepositoryProvider` / `itemsRepositoryProvider` / `categoriesRepositoryProvider` / `feedbackRepositoryProvider` / `usersRepositoryProvider` | Provider | Repository |
 | `authStateProvider` | StreamProvider | ログイン状態（`User?`） |
 | `currentUserProvider` | Provider | ログイン中のユーザー（未ログイン・確認中は null） |
 | `accessCheckProvider` | FutureProvider | 利用許可の確認と、利用開始の準備（メンバー登録・初期カテゴリ作成）。結果は `AccessStatus` |
@@ -53,6 +56,9 @@
 | `isDeveloperProvider` | FutureProvider | 開発者かどうか。ログイン中のユーザーが変わると判定し直す。判定できないときは false |
 | `myFeedbackProvider` | StreamProvider | 自分が送った改善意見（新しい順）。送った人で絞り込み、並べ替えはアプリ側で行う |
 | `allFeedbackProvider` | StreamProvider | すべての改善意見（新しい順）。開発者のときだけ一覧ページから購読する |
+| `myAccessRequestProvider` | FutureProvider | 自分の追加の依頼がすでにあるか（アクセス権限エラー画面で使う）。依頼したとき・「もう一度確認する」で作り直す |
+| `accessRequestsProvider` | StreamProvider | 追加の依頼の一覧（古い順）。開発者のときだけユーザー管理ページから購読する |
+| `allowedUsersProvider` | StreamProvider | 利用を許可されたアカウントの一覧（開発者が先・メールアドレス順）。開発者のときだけユーザー管理ページから購読する |
 | `appRouterProvider` | Provider | `GoRouter`。`accessStatusProvider` を監視して画面を切り替える |
 
 ![Provider の依存関係](diagrams/providers.svg)
@@ -61,7 +67,7 @@
 
 ### サインアウト時の購読の停止
 
-`categoriesProvider`・`itemsProvider`・`myItemOrderProvider`・`myFeedbackProvider`・`allFeedbackProvider`・オフライン判定の購読は、ログイン中の uid を監視する。uid が null（サインアウト）になると空のリストを返す Stream に切り替わり、Firestore の購読をやめる。
+`categoriesProvider`・`itemsProvider`・`myItemOrderProvider`・`myFeedbackProvider`・`allFeedbackProvider`・`accessRequestsProvider`・`allowedUsersProvider`・オフライン判定の購読は、ログイン中の uid を監視する。uid が null（サインアウト）になると空のリストを返す Stream に切り替わり、Firestore の購読をやめる。
 
 ## 4. Firebase の使い方
 
@@ -76,4 +82,4 @@
   - オフライン中は、画面上部に「オフラインです。変更は接続が戻ると反映されます」と表示する（`isOfflineProvider`、`HomeShell`）。
   - トランザクション（担当宣言など）はオフラインでは失敗し、「保存できませんでした」と表示する。
 - 設定値（apiKey など）は `--dart-define-from-file` でビルド時に渡す（[folder_structure.md](folder_structure.md) の「設定値（秘密情報）の扱い」）。
-- アクセス制限の詳細はリポジトリでは管理しない。
+- 利用の許可は Firestore の `allowedUsers`（開発者は `admin: true`）で管理し、データの保護はセキュリティルールが担う。許可するアカウントのメールアドレスの実値はリポジトリでは管理しない。
