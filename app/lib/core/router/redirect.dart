@@ -13,9 +13,11 @@ const returnablePaths = {
   '/settings/categories',
   '/settings/feedback',
   feedbackListPath,
+  usersPath,
 };
 
 const feedbackListPath = '/feedback';
+const usersPath = '/users';
 
 /// 判定結果と今の URL から、移動先を決める（移動しないなら null）。
 ///

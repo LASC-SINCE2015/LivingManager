@@ -1,0 +1,45 @@
+@startuml user_request
+!pragma layout smetana
+' 許可されていないアカウントが追加を依頼し、開発者が承認するまでの流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "依頼する人" as req
+participant "NoAccessPage\n(AccessRequestPanel)" as noAccess
+participant "accessCheckProvider" as check
+participant "UsersRepository" as repo
+database "Firestore" as fs
+participant "UsersPage" as page
+actor "開発者" as dev
+
+== 依頼 ==
+req -> noAccess : 許可されていないアカウントでログイン\n（ログインしたまま /no_access）
+noAccess -> repo : hasRequested(user)
+repo -> fs : accessRequests/{自分のメール} を get
+fs --> noAccess : なし
+req -> noAccess : 「管理者に追加を依頼する」
+noAccess -> repo : requestAccess(user)
+repo -> fs : accessRequests/{自分のメール} を set\n（uid, displayName, requestedAt）
+noAccess -> req : 「管理者に依頼しました」\n依頼済みの表示＋「もう一度確認する」
+
+== 承認 ==
+dev -> page : 設定 →「ユーザー管理（開発者用）」
+page -> repo : watchRequests() / watchAllowedUsers()
+repo -> fs : snapshots（開発者のときだけ）
+fs --> page : 依頼の一覧・現在のユーザー
+dev -> page : 「承認」→ メモ・開発者にするかを決めて承認
+page -> repo : approve(email, memo, admin)
+repo -> fs : バッチ: allowedUsers/{メール} を set\n＋ accessRequests/{メール} を delete
+fs --> page : snapshots（依頼が消え、現在のユーザーに加わる）
+
+== 承認後の確認 ==
+req -> noAccess : 「もう一度確認する」
+noAccess -> check : 作り直す（invalidate）
+check -> fs : allowedUsers/{自分のメール} を get
+alt 承認済み
+  check -> check : メンバー登録・初期カテゴリの準備
+  check --> req : allowed → /stock へ
+else まだ承認されていない
+  check --> req : denied → /no_access のまま
+end
+@enduml

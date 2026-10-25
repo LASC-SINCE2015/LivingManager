@@ -14,9 +14,11 @@
 | `categories` | 自動採番（初期カテゴリは `water` / `other`） | `Category`（`id`, `name`, `order`） | 読み取り・追加: `ItemsRepository`、名前変更・並べ替え・削除: `CategoriesRepository` |
 | `items` | 自動採番 | `Item`、`purchase` は `Purchase` | `ItemsRepository` |
 | `feedback` | 自動採番 | `UserFeedback`（`type` は `FeedbackType`、`status` は `FeedbackStatus`） | `FeedbackRepository` |
+| `allowedUsers` | メールアドレス（小文字） | `AllowedUser`（`email`, `memo`, `admin`）。`approvedAt` は持たない | 利用許可・開発者の判定: `AuthRepository`、一覧・追加（承認）: `UsersRepository` |
+| `accessRequests` | メールアドレス（小文字） | `AccessRequest`（`email`, `displayName`, `requestedAt`）。`uid` は持たない | `UsersRepository` |
 
 - `items` の `createdAt` は `Item.createdAt` として読む（並び順が未設定のアイテムを追加した順に並べるため）。`users` / `categories` の `createdAt`・`updatedAt` は domain のクラスには持たない（画面で使わないため）。
-- アクセス制限の詳細はリポジトリでは管理しない。
+- 利用を許可されているかは `allowedUsers/{メールアドレス}` があるか、開発者かはその `admin` が true かで判定する（`AuthRepository.isAllowed` / `isDeveloper`）。データの保護は Firestore のセキュリティルール（`firebase/firestore.rules`）が担う。許可するアカウントのメールアドレスの実値はリポジトリでは管理しない。
 
 ## 2. 読み取りと変換
 
@@ -31,9 +33,10 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | `purchase` | マップでなければ null（未担当） |
 | `purchase.state` | 未知の値は `planned` として扱う（`PurchaseState.fromValue`） |
 | `feedback.type` / `feedback.status` | 未知の値はそれぞれ `other` / `open` として扱う（`FeedbackType.fromValue` / `FeedbackStatus.fromValue`） |
+| `allowedUsers.admin` | `true` 以外（ない・`false`・型違い）は一般の家族として扱う |
 | `categoryId` | なければ `other` |
 | 文字列（`name`, `memo`, `updatedByName` など） | なければ空文字 |
-| 日時（`createdAt`, `updatedAt`, `purchase.at`） | `Timestamp` でなければ null。保存直後でサーバー時刻が未確定のときも null になり、画面には「たった今」と表示する |
+| 日時（`createdAt`, `updatedAt`, `purchase.at`, `requestedAt`） | `Timestamp` でなければ null。保存直後でサーバー時刻が未確定のときも null になり、画面には「たった今」と表示する |
 
 - アイテムの `categoryId` がどのカテゴリにも当てはまらない（カテゴリが削除された）場合、画面では「その他」に入れて表示する。
 
@@ -71,6 +74,9 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | 改善意見の状態の変更（開発者） | `FeedbackRepository.updateStatus` | update | `status`, `statusUpdatedAt` |
 | 改善意見のメモの変更（開発者） | `FeedbackRepository.updateMemo` | update | `devMemo`, `statusUpdatedAt` |
 | 改善意見の削除（開発者） | `FeedbackRepository.delete` | delete | ― |
+| 管理者への追加の依頼（許可されていないアカウント） | `UsersRepository.requestAccess` | set（ID は自分のメールアドレスの小文字） | `uid`, `displayName`（Google アカウントの名前。50 文字まで）, `requestedAt`。すでにあれば失敗する（作り直し不可） |
+| 依頼の承認（開発者） | `UsersRepository.approve` | **バッチ** | `allowedUsers/{メール}` に `memo`, `admin`, `approvedAt` を set し、`accessRequests/{メール}` を delete |
+| 依頼の却下（開発者） | `UsersRepository.reject` | delete | ― |
 | ステータス変更を元に戻す | `revertStatus` | **トランザクション** | 操作前のステータス・更新者（自分）・担当（下記） |
 | 購入完了を元に戻す | `revertPurchase` | **トランザクション** | 戻せるアイテムだけ、操作前のステータス・カゴ済み・更新者（自分） |
 
@@ -147,4 +153,15 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 - どちらも並べ替え（`createdAt` の新しい順。保存中で日時が未確定のものは先頭）はアプリ側で行い（`sortNewestFirst`）、複合インデックスを不要にしている（[ADR 0003](../decisions/0003_sort_on_client.md)）。
 - 状態・種類での絞り込みと状態ごとの件数もアプリ側で行う（`filterFeedback` / `countByStatus`）。
 - 送った後は、本文・種類などを変更しない。開発者が変えるのは `status` と `devMemo` だけで、そのたびに `statusUpdatedAt` を更新する。
-- 開発者かどうかの判定は `isDeveloperProvider` で行う（判定方法はリポジトリでは管理しない）。
+- 開発者かどうかの判定は `isDeveloperProvider` で行う（`allowedUsers` の自分のドキュメントの `admin`）。
+
+## 8. 追加の依頼とユーザー管理（`accessRequests` / `allowedUsers`）
+
+- 読み取り:
+  - 自分の依頼があるか: `hasRequested(user)` は自分のメールアドレスの依頼を 1 回だけ get する（`myAccessRequestProvider`）。アクセス権限エラー画面で使う。
+  - 依頼の一覧: `watchRequests()` は全件を購読する（`accessRequestsProvider`）。古い順（`sortRequestsOldestFirst`。日時が未確定のものは最後）。
+  - 許可済みのアカウントの一覧: `watchAllowedUsers()` は全件を購読する（`allowedUsersProvider`）。開発者が先・メールアドレス順（`sortAllowedUsers`）。
+  - 一覧の 2 つは、開発者のときだけユーザー管理ページから購読する。並べ替えはアプリ側で行う（[ADR 0003](../decisions/0003_sort_on_client.md)）。
+- 承認は、許可リストへの追加と依頼の削除を 1 回のバッチで行う。片方だけ成功して「追加されたのに依頼が残る」ことはない。すでに許可リストにあるアカウントの依頼を承認しようとした場合は、許可リストの変更にあたるためルールで拒否され、バッチ全体が失敗する。
+- 許可リストのメモ・開発者の変更と削除は、アプリでは行わない（Firebase コンソールから）。
+- 設計の判断は [ADR 0010](../decisions/0010_user_request_in_app.md)。処理の流れは [sequences/user_request.md](../sequences/user_request.md)。

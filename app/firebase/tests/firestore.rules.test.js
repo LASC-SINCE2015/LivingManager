@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
@@ -102,14 +103,86 @@ describe('許可リスト', () => {
     await assertSucceeds(getDoc(doc(dbOf(ALICE), 'items/sample')));
   });
 
-  it('自分の許可リストのドキュメントだけ確認できる', async () => {
-    await assertSucceeds(getDoc(doc(dbOf(ALICE), 'allowedUsers', ALICE.email)));
+  it('一般の家族は自分の許可リストのドキュメントだけ確認できる', async () => {
+    await assertSucceeds(getDoc(doc(dbOf(BOB), 'allowedUsers', BOB.email)));
     await assertSucceeds(getDoc(doc(dbOf(MALLORY), 'allowedUsers', MALLORY.email)));
-    await assertFails(getDoc(doc(dbOf(ALICE), 'allowedUsers', BOB.email)));
+    await assertFails(getDoc(doc(dbOf(BOB), 'allowedUsers', ALICE.email)));
+    await assertFails(getDoc(doc(dbOf(MALLORY), 'allowedUsers', BOB.email)));
   });
 
-  it('許可リストはアプリから変更できない', async () => {
-    await assertFails(setDoc(doc(dbOf(ALICE), 'allowedUsers', MALLORY.email), { memo: 'x' }));
+  it('開発者は許可リストの一覧を見られる。一般の家族は見られない', async () => {
+    await assertSucceeds(getDocs(collection(dbOf(ALICE), 'allowedUsers')));
+    await assertSucceeds(getDoc(doc(dbOf(ALICE), 'allowedUsers', BOB.email)));
+    await assertFails(getDocs(collection(dbOf(BOB), 'allowedUsers')));
+  });
+
+  it('開発者だけが許可リストに追加できる', async () => {
+    const data = { memo: 'マロリー', admin: false, approvedAt: serverTimestamp() };
+    await assertFails(setDoc(doc(dbOf(BOB), 'allowedUsers', MALLORY.email), data));
+    await assertFails(setDoc(doc(dbOf(MALLORY), 'allowedUsers', MALLORY.email), data));
+    await assertSucceeds(setDoc(doc(dbOf(ALICE), 'allowedUsers', MALLORY.email), data));
+  });
+
+  it('許可リストへの追加は決まった形だけ。大文字のメールアドレスは不可', async () => {
+    const db = dbOf(ALICE);
+    const ok = { memo: '', admin: true, approvedAt: serverTimestamp() };
+    await assertFails(setDoc(doc(db, 'allowedUsers', 'New@example.com'), ok));
+    await assertFails(setDoc(doc(db, 'allowedUsers', 'a@example.com'), { ...ok, admin: 'yes' }));
+    await assertFails(setDoc(doc(db, 'allowedUsers', 'b@example.com'), { ...ok, memo: 'x'.repeat(51) }));
+    await assertFails(setDoc(doc(db, 'allowedUsers', 'c@example.com'), { ...ok, extra: 1 }));
+  });
+
+  it('許可リストの変更・削除はアプリからできない', async () => {
+    await assertFails(updateDoc(doc(dbOf(ALICE), 'allowedUsers', BOB.email), { memo: 'x' }));
+    await assertFails(deleteDoc(doc(dbOf(ALICE), 'allowedUsers', BOB.email)));
+  });
+});
+
+describe('accessRequests', () => {
+  function newRequest(user, overrides = {}) {
+    return { uid: user.uid, displayName: 'マロリー', requestedAt: serverTimestamp(), ...overrides };
+  }
+
+  it('許可されていないアカウントは自分の依頼を作れる', async () => {
+    const db = dbOf(MALLORY);
+    await assertSucceeds(setDoc(doc(db, 'accessRequests', MALLORY.email), newRequest(MALLORY)));
+    await assertSucceeds(getDoc(doc(db, 'accessRequests', MALLORY.email)));
+  });
+
+  it('他人の依頼は作れない・見られない', async () => {
+    const db = dbOf(MALLORY);
+    await assertFails(setDoc(doc(db, 'accessRequests', 'other@example.com'), newRequest(MALLORY)));
+    await assertFails(setDoc(doc(db, 'accessRequests', MALLORY.email), newRequest(BOB)));
+    await assertFails(getDoc(doc(db, 'accessRequests', 'other@example.com')));
+    await assertFails(getDocs(collection(db, 'accessRequests')));
+  });
+
+  it('許可済みのアカウントは依頼を作れない', async () => {
+    await assertFails(setDoc(doc(dbOf(BOB), 'accessRequests', BOB.email), newRequest(BOB)));
+  });
+
+  it('依頼は決まった形だけ。作り直し（上書き）はできない', async () => {
+    const db = dbOf(MALLORY);
+    const ref = doc(db, 'accessRequests', MALLORY.email);
+    await assertFails(setDoc(ref, newRequest(MALLORY, { displayName: 'x'.repeat(51) })));
+    await assertFails(setDoc(ref, newRequest(MALLORY, { admin: true })));
+    await assertSucceeds(setDoc(ref, newRequest(MALLORY)));
+    await assertFails(setDoc(ref, newRequest(MALLORY)));
+    await assertFails(deleteDoc(ref));
+  });
+
+  it('開発者は依頼の一覧を見て、承認（追加と削除を同時に）・却下できる', async () => {
+    await assertSucceeds(setDoc(doc(dbOf(MALLORY), 'accessRequests', MALLORY.email), newRequest(MALLORY)));
+    await assertFails(getDocs(collection(dbOf(BOB), 'accessRequests')));
+    await assertFails(deleteDoc(doc(dbOf(BOB), 'accessRequests', MALLORY.email)));
+
+    const db = dbOf(ALICE);
+    await assertSucceeds(getDocs(collection(db, 'accessRequests')));
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'allowedUsers', MALLORY.email), { memo: 'マロリー', admin: false, approvedAt: serverTimestamp() });
+    batch.delete(doc(db, 'accessRequests', MALLORY.email));
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(getDoc(doc(dbOf(MALLORY), 'items/sample')));
   });
 });
 

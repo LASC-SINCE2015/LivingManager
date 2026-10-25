@@ -57,7 +57,24 @@ entity "feedback" as feedback {
   statusUpdatedAt : timestamp
 }
 
+entity "allowedUsers" as allowedUsers {
+  * email : ドキュメント ID（小文字）
+  --
+  memo : string
+  admin : bool
+  approvedAt : timestamp
+}
+
+entity "accessRequests" as accessRequests {
+  * email : ドキュメント ID（小文字）
+  --
+  uid : string
+  displayName : string
+  requestedAt : timestamp
+}
+
 categories ||--o{ items : categoryId
+accessRequests ..> allowedUsers : 承認で追加（依頼は削除）
 users ||--o{ feedback : byUid
 users ||--o{ items : updatedByUid
 items ||--o| purchase : purchase
