@@ -1,0 +1,27 @@
+@startuml purchase_state
+!pragma layout smetana
+' アイテムの status と purchase の組み合わせの移り変わり
+skinparam defaultFontName "Meiryo"
+
+state "十分\nstatus = sufficient\npurchase = null" as Sufficient
+state "未担当\nstatus = low / empty\npurchase = null" as Open
+state "担当中\npurchase.state = planned" as Planned
+state "カゴ済み\npurchase.state = in_cart" as InCart
+
+[*] --> Sufficient : 追加（十分）
+[*] --> Open : 追加（残りわずか・切れてる）
+
+Sufficient --> Open : changeStatus\n（残りわずか・切れてる）
+Open --> Sufficient : changeStatus（十分）
+
+Open --> Planned : claim（買います）
+Planned --> Open : release（やめる）
+Planned --> Planned : claim（代わりに買う）\n担当者が自分に替わる
+Open --> InCart : claim（チェック）\n自分が担当者になる
+Planned --> InCart : claim（チェック）
+InCart --> Planned : uncheck（チェックを外す）
+
+InCart --> Sufficient : completePurchase（購入完了）
+Planned --> Sufficient : changeStatus（十分）
+InCart --> Sufficient : changeStatus（十分）
+@enduml

@@ -23,3 +23,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Firebase のプロジェクト ID（デプロイ時に --project で指定する）
+.firebaserc

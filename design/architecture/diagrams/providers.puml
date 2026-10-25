@@ -1,0 +1,57 @@
+@startuml providers
+!pragma layout smetana
+' Riverpod の Provider の依存関係（矢印は「監視・参照している先」）
+skinparam defaultFontName "Meiryo"
+left to right direction
+
+rectangle "core" {
+  rectangle "firebaseAuthProvider" as fa
+  rectangle "firestoreProvider" as fs
+  rectangle "appRouterProvider" as router
+}
+
+rectangle "auth" {
+  rectangle "authRepositoryProvider" as authRepo
+  rectangle "memberRepositoryProvider" as memberRepo
+  rectangle "authStateProvider\nStream: User?" as authState
+  rectangle "currentUserProvider" as currentUser
+  rectangle "accessCheckProvider\nFuture: AccessStatus" as accessCheck
+  rectangle "accessStatusProvider" as accessStatus
+  rectangle "deniedEmailProvider" as deniedEmail
+  rectangle "currentMemberProvider\nStream: Member?" as currentMember
+  rectangle "actorProvider" as actor
+}
+
+rectangle "items" {
+  rectangle "itemsRepositoryProvider" as itemsRepo
+  rectangle "categoriesProvider\nStream: List of Category" as categories
+  rectangle "itemsProvider\nStream: List of Item" as itemList
+  rectangle "shoppingCountProvider" as count
+}
+
+authRepo --> fa
+authRepo --> fs
+memberRepo --> fs
+itemsRepo --> fs
+
+authState --> authRepo
+currentUser --> authState
+accessCheck --> authState
+accessCheck --> authRepo : 利用許可の確認
+accessCheck --> memberRepo : メンバー登録
+accessCheck --> itemsRepo : 初期カテゴリ作成
+accessStatus --> accessCheck
+currentMember --> currentUser
+currentMember --> memberRepo
+actor --> currentUser
+actor --> currentMember
+
+categories --> currentUser : uid
+categories --> itemsRepo
+itemList --> currentUser : uid
+itemList --> itemsRepo
+count --> itemList
+
+router --> accessStatus : listen
+router --> deniedEmail : 拒否時に設定
+@enduml

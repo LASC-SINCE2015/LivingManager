@@ -16,11 +16,13 @@
 ├─ README.md
 ├─ .gitignore
 ├─ spec/                        … 仕様書（何を作るか）
-├─ design/                      … 設計書（どう作るか）
+├─ design/                      … 設計書（どう作るか）。用途別のフォルダに分ける（design/README.md）
+├─ testing/                     … 確認内容と確認結果の記録
+├─ tools/                       … 開発用スクリプト（PlantUML の図 → SVG の生成など）
 └─ app/                         … Flutter プロジェクト（実行するものはすべてここ）
 ```
 
-リポジトリ直下は「文書（spec / design）」と「コード（app）」の 3 つだけに保つ。
+リポジトリ直下は「文書（spec / design / testing）」「開発用の道具（tools）」「コード（app）」に分ける。アプリの実行・ビルドに必要なものは app/ の中だけに置く。
 
 ## app/ の構成
 
@@ -40,12 +42,16 @@ app/
 │  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移）
 │  ├─ firebase_options.dart     … 設定値は --dart-define-from-file で受け取る
 │  ├─ core/                     … アプリ全体の土台
-│  │  ├─ router/                …   go_router の定義
-│  │  └─ theme/                 …   テーマ
+│  │  ├─ firebase/              …   Firebase の各サービスの Provider
+│  │  ├─ router/                …   go_router の定義・タブの枠
+│  │  ├─ theme/                 …   テーマ
+│  │  └─ utils/                 …   文字列の正規化・日時の表示などの関数
 │  ├─ features/                 … 機能ごとのフォルダ
-│  │  ├─ auth/                  …   ログイン・家族メンバー判定
-│  │  └─ items/                 …   日用品の一覧・在庫ステータス更新
-│  └─ shared/widgets/           … 機能をまたいで使う共通ウィジェット
+│  │  ├─ auth/                  …   ログイン・利用許可の判定・家族メンバー（表示名）
+│  │  ├─ items/                 …   在庫一覧・アイテム/カテゴリの読み書き・担当/カゴ済み
+│  │  ├─ shopping_list/         …   買い物リスト（items の data / domain を使う）
+│  │  └─ settings/              …   設定（表示名・ログアウト）
+│  └─ shared/widgets/           … 機能をまたいで使う共通ウィジェット（確認ダイアログなど）
 ├─ test/                        … Flutter のテスト（lib/ と同じ階層構造で置く）
 └─ firebase/                    … Firestore 関連
    ├─ firestore.rules           … セキュリティルール（最重要）
@@ -55,6 +61,8 @@ app/
 ```
 
 ### features/ の中の 3 層
+
+層ごとの役割と Provider の関係は [layers.md](layers.md) を参照。
 
 各機能フォルダは次の 3 層に分ける。依存の向きは `presentation → domain ← data`。
 

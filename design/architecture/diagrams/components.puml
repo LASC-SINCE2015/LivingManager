@@ -1,0 +1,61 @@
+@startuml components
+!pragma layout smetana
+' アプリの機能・層と Firebase の関係を表すコンポーネント図（上から presentation → data → Firebase）
+skinparam defaultFontName "Meiryo"
+skinparam componentStyle rectangle
+top to bottom direction
+
+package "app/lib" {
+  [core/router\n(go_router・タブの枠)] as router
+
+  package "presentation（画面）" {
+    [auth\nログイン・権限エラー・スプラッシュ] as authP
+    [items\n在庫一覧・編集シート] as itemsP
+    [shopping_list\n買い物リスト] as shopP
+    [settings\n設定] as setP
+  }
+
+  package "data（Firestore との読み書き）" {
+    [auth\nAuthRepository / MemberRepository] as authD
+    [items\nItemsRepository] as itemsD
+  }
+
+  package "domain（モデル）" {
+    [auth\nMember / AccessStatus] as authM
+    [items\nItem / Category / StockStatus] as itemsM
+  }
+
+  [core/firebase\n(Provider)] as fbp
+}
+
+cloud "Firebase" {
+  [Authentication] as auth
+  database "Firestore" as fs
+  [Hosting] as hosting
+}
+
+router --> authP
+router --> itemsP
+router --> shopP
+router --> setP
+
+authP --> authD
+authP --> itemsD : 初期カテゴリ作成
+itemsP --> itemsD
+shopP --> itemsD
+setP --> authD
+
+authD --> authM
+itemsD --> itemsM
+
+authD --> fbp
+itemsD --> fbp
+fbp --> auth
+fbp --> fs
+
+note right of router
+  presentation は core/utils（正規化・日時表示）と
+  shared/widgets（ダイアログ・SnackBar）も使う。
+  ビルドした build/web は Hosting から配信する。
+end note
+@enduml

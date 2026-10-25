@@ -1,0 +1,24 @@
+@startuml claim_conflict
+!pragma layout smetana
+' ほぼ同時に 2 人が「買います」を押したとき、先にコミットした人が担当になる流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "A さん" as a
+actor "B さん" as b
+participant "ItemsRepository\n（A の端末）" as repoA
+participant "ItemsRepository\n（B の端末）" as repoB
+database "Firestore" as fs
+
+a -> repoA : 「買います」
+b -> repoB : 「買います」
+repoA -> fs : 読む（purchase = null）
+repoB -> fs : 読む（purchase = null）
+repoA -> fs : purchase = A の担当
+fs --> repoA : コミット成功
+repoA --> a : ClaimSucceeded
+repoB -> fs : purchase = B の担当
+fs --> repoB : 読んだ後に変更されていたため失敗
+repoB -> fs : やり直し: 読む（purchase = A の担当）
+repoB --> b : ClaimConflicted("A")\n「すでに A が担当しています」
+@enduml
