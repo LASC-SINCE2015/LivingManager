@@ -22,6 +22,7 @@ state "HomeShell（タブ / PC はサイドナビ）" as Shell {
 }
 
 state "/feedback\n改善意見の一覧（開発者用）\nタブの外の独立ページ" as FeedbackList
+state "/users\nユーザー管理（開発者用）\nタブの外の独立ページ" as Users
 
 state "アイテム追加・編集\n（ボトムシート）" as EditSheet
 
@@ -30,10 +31,13 @@ Splash --> Login : 未ログイン
 Splash --> Stock : 利用できる\n（from があればその画面）
 Splash --> NoAccess : 許可されていない
 Login --> Splash : ログイン成功
-NoAccess --> Login : 別のアカウントでログイン
+NoAccess --> Login : 別のアカウントでログイン\n（サインアウト）
+NoAccess --> Stock : もう一度確認する\n（承認済みなら）
 Settings --> Splash : ログアウト
 Settings --> FeedbackList : 一覧（開発者のときだけ表示）
 FeedbackList --> Stock : 戻る
+Settings --> Users : ユーザー管理（開発者のときだけ表示）
+Users --> Settings : 戻る
 
 Stock --> EditSheet : ＋ / 編集
 Shopping --> EditSheet : ＋（初期ステータス 切れてる）

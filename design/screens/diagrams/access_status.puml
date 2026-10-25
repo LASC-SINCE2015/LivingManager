@@ -17,7 +17,7 @@ checking --> error : 通信エラーなど
 
 signedOut --> checking : ログイン
 allowed --> checking : ログアウト
-denied --> checking : 自動サインアウト
+denied --> checking : もう一度確認する\n別のアカウントでログイン
 error --> checking : 再試行
 error --> checking : ログアウト
 @enduml

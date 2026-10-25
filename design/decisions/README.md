@@ -22,3 +22,4 @@
 | [0007](0007_undo_sets_updater_to_self.md) | 「元に戻す」では更新者を自分にし、ほかの人の担当は戻さない | 採用 |
 | [0008](0008_offline_from_cache_state.md) | オフライン判定は Firestore のキャッシュ状態を使う | 採用 |
 | [0009](0009_feedback_in_app_for_developer.md) | 改善意見の一覧はアプリ内の別ページで、開発者だけが見る | 採用 |
+| [0010](0010_user_request_in_app.md) | 利用するアカウントの追加は、アプリ内の依頼と開発者の承認で行う | 採用 |

@@ -19,11 +19,11 @@
 1. 「Googleでログイン」で `signInWithPopup` を呼ぶ（アカウント選択を毎回出す `prompt=select_account`）。
 2. ログインに成功すると `authStateChanges` が新しいユーザーを流し、`accessCheckProvider` が作り直される（この間は `checking` なので `/splash`）。
 3. 利用開始の準備（`accessCheckProvider`）:
-   1. 利用許可の確認（`AuthRepository.isAllowed`）。許可されていなければ `denied`。アクセス制限の詳細はリポジトリでは管理しない。
+   1. 利用許可の確認（`AuthRepository.isAllowed`）。許可されていなければ `denied`。許可するアカウントのメールアドレスの実値はリポジトリでは管理しない。
    2. 自分の `users` ドキュメントがなければ作る（`MemberRepository.ensureExists`）。
    3. 初期カテゴリ（`water` / `other`）がなければ作る（`ItemsRepository.ensureInitialCategories`）。
    4. `allowed` を返す → `/stock` へ移動する。
-4. 許可されていなかった場合は `/no_access` へ移動し、画面の表示後に自動でサインアウトする（[screens/screen_flow.md](../screens/screen_flow.md)）。
+4. 許可されていなかった場合は `/no_access` へ移動する。管理者に追加を依頼できるよう、ログインしたままにする（サインアウトは「別のアカウントでログイン」を押したとき。[screens/screen_flow.md](../screens/screen_flow.md)、[user_request.md](user_request.md)）。
 
 ## 3. 失敗したとき
 

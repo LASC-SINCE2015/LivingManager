@@ -14,18 +14,21 @@ package "app/lib" {
     [shopping_list\n買い物リスト] as shopP
     [settings\n設定] as setP
     [feedback\n改善意見の送信・一覧（開発者用）] as fbP
+    [users\n追加の依頼・ユーザー管理（開発者用）] as usersP
   }
 
   package "data（Firestore との読み書き）" {
     [auth\nAuthRepository / MemberRepository] as authD
     [items\nItemsRepository] as itemsD
     [feedback\nFeedbackRepository] as fbD
+    [users\nUsersRepository] as usersD
   }
 
   package "domain（モデル）" {
     [auth\nMember / AccessStatus] as authM
     [items\nItem / Category / StockStatus] as itemsM
     [feedback\nUserFeedback] as fbM
+    [users\nAccessRequest / AllowedUser] as usersM
   }
 
   [core/firebase\n(Provider)] as fbp
@@ -42,6 +45,7 @@ router --> itemsP
 router --> shopP
 router --> setP
 router --> fbP
+router --> usersP
 
 authP --> authD
 authP --> itemsD : 初期カテゴリ作成
@@ -49,14 +53,18 @@ itemsP --> itemsD
 shopP --> itemsD
 setP --> authD
 fbP --> fbD
+authP --> usersP : 権限エラー画面の依頼ボタン
+usersP --> usersD
 
 authD --> authM
 itemsD --> itemsM
 fbD --> fbM
+usersD --> usersM
 
 authD --> fbp
 itemsD --> fbp
 fbD --> fbp
+usersD --> fbp
 fbp --> auth
 fbp --> fs
 

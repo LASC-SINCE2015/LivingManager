@@ -43,6 +43,13 @@ rectangle "feedback" {
   rectangle "allFeedbackProvider\nStream: すべての意見" as allFb
 }
 
+rectangle "users" {
+  rectangle "usersRepositoryProvider" as usersRepo
+  rectangle "myAccessRequestProvider\nFuture: 依頼済みか" as myReq
+  rectangle "accessRequestsProvider\nStream: 依頼の一覧" as reqs
+  rectangle "allowedUsersProvider\nStream: 許可済みの一覧" as allowed
+}
+
 authRepo --> fa
 authRepo --> fs
 memberRepo --> fs
@@ -74,6 +81,13 @@ myFb --> currentUser : uid
 myFb --> fbRepo
 allFb --> currentUser : uid
 allFb --> fbRepo
+usersRepo --> fs
+myReq --> currentUser
+myReq --> usersRepo
+reqs --> currentUser : uid
+reqs --> usersRepo
+allowed --> currentUser : uid
+allowed --> usersRepo
 
 router --> accessStatus : listen
 router --> deniedEmail : 拒否時に設定

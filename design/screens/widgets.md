@@ -120,7 +120,7 @@ Scaffold
 
 ### 設定（`SettingsPage`）
 
-- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、改善意見を送る（`/settings/feedback` へ移動）、改善意見の一覧（開発者用。`isDeveloperProvider` が true のときだけ表示し、`/feedback` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
+- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、改善意見を送る（`/settings/feedback` へ移動）、改善意見の一覧（開発者用。`isDeveloperProvider` が true のときだけ表示し、`/feedback` へ移動）、ユーザー管理（開発者用。同じく開発者のときだけ表示し、`/users` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
 
 ### カテゴリ管理（`CategoriesPage`）
 
@@ -179,6 +179,28 @@ Scaffold（HomeShell の外。ナビゲーションなし）
 - 開発者でないときは `allFeedbackProvider` を購読しない（一覧を読み込まない）。
 - 状態チップの件数は、種類で絞り込んだ後の一覧から数える（`countByStatus`）。絞り込みは `filterFeedback`。
 
+### ユーザー管理（`UsersPage`）
+
+```
+Scaffold（HomeShell の外。ナビゲーションなし）
+├─ AppBar「ユーザー管理（開発者用）」＋ 戻るボタン（/settings へ）
+└─ body: isDeveloperProvider の結果で切り替え
+   ├─ 判定中: インジケーター
+   ├─ 開発者でない・判定エラー: _NoPermission（「このページを見る権限がありません」＋ 在庫一覧へ戻るボタン）
+   └─ 開発者: _UsersBody（ListView。中央寄せ・最大幅 960px）
+      ├─ 見出し「追加の依頼（N）」（accessRequestsProvider。0 件なら「依頼はありません」）
+      │  └─ _RequestCard × 件数（古い順）
+      │     ├─ メールアドレス（SelectableText）・名前・依頼日時
+      │     └─「却下」（確認ダイアログの後 reject）・「承認」→ _ApproveDialog
+      ├─ 見出し「現在のユーザー（N）」（allowedUsersProvider）
+      │  └─ Card の中に _AllowedUserTile × 件数（開発者が先・メールアドレス順。メモ・「開発者」の Chip）
+      └─ 注記「メモ・開発者の変更や、ユーザーの削除は Firebase コンソールから行います。」
+```
+
+- `_ApproveDialog`: メールアドレス、メモの `TextFormField`（初期値は `initialMemoFor`＝依頼したアカウントの名前。最大 50 文字。`validateUserMemo`）、`SwitchListTile`「開発者にする」（初期値オフ）。「承認」で `UsersRepository.approve` を呼び、成功したら「〇〇 を追加しました」と表示する。失敗は `runWithErrorMessage` のメッセージ。
+- 開発者でないときは `accessRequestsProvider`・`allowedUsersProvider` を購読しない（一覧を読み込まない）。
+- 並べ替えは `sortRequestsOldestFirst`・`sortAllowedUsers`（`users/domain/user_rules.dart`）。
+
 ### メイン画面の枠（`HomeShell`）
 
 - 画面幅 768px 以上: `Row`（`NavigationRail`（ラベル表示・買い物リストに `Badge`）＋ 縦線 ＋ 各タブの画面）。
@@ -188,5 +210,6 @@ Scaffold（HomeShell の外。ナビゲーションなし）
 ### ログイン・アクセス権限エラー・スプラッシュ
 
 - `LoginPage`: アプリのアイコン（`assets/images/app_icon.png` を `Image.asset` で表示）、アプリ名「おうちストック」、「Googleでログイン」ボタン。ログイン中はボタンを押せなくし、`LinearProgressIndicator` を表示する。ポップアップを閉じた場合は「ログインがキャンセルされました」、それ以外の失敗は「ログインできませんでした（エラーコード）」。
-- `NoAccessPage`: 表示した直後（最初のフレームの後）にサインアウトする。メールアドレスは `deniedEmailProvider` から表示する。
+- `NoAccessPage`: 自動ではサインアウトしない（管理者に追加を依頼できるよう、ログインしたままにする）。メールアドレスは `deniedEmailProvider` から表示する。説明文の下に `AccessRequestPanel`（`users/presentation/`）を置き、その下に「別のアカウントでログイン」（`signOut` の後、`deniedEmailProvider` を空にして `/login` へ）。
+- `AccessRequestPanel`: `myAccessRequestProvider` の結果で切り替える。確認中は `LinearProgressIndicator`。依頼がない（読み込めなかった場合も含む）ときは `FilledButton`「管理者に追加を依頼する」（`UsersRepository.requestAccess`。押している間は押せない。成功で「管理者に依頼しました」、失敗で「依頼できませんでした。通信状態を確認してください」）。依頼済みなら「管理者に追加を依頼済みです…」の枠と「もう一度確認する」（`accessCheckProvider` と `myAccessRequestProvider` を作り直す）。未ログインなら何も表示しない。
 - `SplashPage`: `AccessStatus.error` のときだけ「接続できませんでした」「再試行」「ログアウト」を表示し、それ以外はインジケーター。

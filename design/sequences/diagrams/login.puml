@@ -26,7 +26,7 @@ check -> authRepo : 利用許可の確認
 authRepo --> check : 結果
 alt 許可されていない
   check -> router : denied
-  router -> router : /no_access へ\n（表示後に自動サインアウト）
+  router -> router : /no_access へ\n（ログインしたまま。追加の依頼ができる）
 else 許可されている
   check -> memberRepo : ensureExists(user)
   memberRepo -> fs : users/{uid} を get\nなければ set

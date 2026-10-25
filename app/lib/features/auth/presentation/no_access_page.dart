@@ -2,34 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../users/presentation/access_request_panel.dart';
 import '../data/auth_repository.dart';
 import 'auth_providers.dart';
 
-/// アクセス権限エラー画面（表示した時点で自動的にサインアウトする）
-class NoAccessPage extends ConsumerStatefulWidget {
+/// アクセス権限エラー画面。
+///
+/// 管理者に追加を依頼できるよう、ログインしたままにしておく
+/// （「別のアカウントでログイン」でサインアウトする）。
+class NoAccessPage extends ConsumerWidget {
   const NoAccessPage({super.key});
 
-  @override
-  ConsumerState<NoAccessPage> createState() => _NoAccessPageState();
-}
-
-class _NoAccessPageState extends ConsumerState<NoAccessPage> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final repository = ref.read(authRepositoryProvider);
-      if (repository.currentUser != null) repository.signOut();
-    });
-  }
-
-  void _backToLogin() {
+  Future<void> _backToLogin(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(authRepositoryProvider);
+    if (repository.currentUser != null) await repository.signOut();
     ref.read(deniedEmailProvider.notifier).set(null);
-    context.go('/login');
+    if (context.mounted) context.go('/login');
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final email = ref.watch(deniedEmailProvider);
     return Scaffold(
@@ -54,8 +46,10 @@ class _NoAccessPageState extends ConsumerState<NoAccessPage> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
+                const AccessRequestPanel(),
+                const SizedBox(height: 16),
                 OutlinedButton(
-                  onPressed: _backToLogin,
+                  onPressed: () => _backToLogin(context, ref),
                   child: const Text('別のアカウントでログイン'),
                 ),
               ],
