@@ -24,4 +24,12 @@ InCart --> Planned : uncheck（チェックを外す）
 InCart --> Sufficient : completePurchase（購入完了）
 Planned --> Sufficient : changeStatus（十分）
 InCart --> Sufficient : changeStatus（十分）
+Sufficient --> InCart : revertPurchase\n（購入完了を元に戻す）
+
+note right of Sufficient
+  revertStatus（ステータス変更を元に戻す）は
+  逆向きの changeStatus と同じ移り変わり。
+  「十分」にしたときに解除した担当は、
+  自分の担当だけ元に戻す。
+end note
 @enduml

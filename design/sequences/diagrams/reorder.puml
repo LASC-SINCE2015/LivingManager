@@ -1,0 +1,30 @@
+@startuml reorder
+!pragma layout smetana
+' 並べ替えモードで並び順を保存する流れ（自分の users ドキュメントだけを書く）
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "家族" as user
+participant "StockPage\n（並べ替えモード）" as page
+participant "MemberRepository" as repo
+database "Firestore" as fs
+
+user -> page : 「並べ替え」（↕）
+page -> page : 検索・絞り込みを解除して並べ替えモードへ
+user -> page : つまみをドラッグして離す
+page -> page : moveItem で新しい並び（アイテム ID の配列）を作り、\n_pendingOrder に入れて先に表示する
+page -> repo : saveCategoryOrder(自分の uid, カテゴリ ID, 並び)
+repo -> fs : update users/{uid}\nitemOrder.<カテゴリ ID> = 並び, updatedAt
+fs -> page : snapshots（myItemOrderProvider）で新しい並びが届く
+alt 成功
+  fs --> repo : 完了
+  repo --> page : 完了
+  page -> page : _pendingOrder を消す\n（以後は保存済みの並びで表示）
+else 失敗
+  repo --> page : エラー
+  page -> page : _pendingOrder を消す（保存済みの元の並びに戻る）
+  page -> user : 「並び順を保存できませんでした。…」
+end
+user -> page : 「完了」（またはタブを切り替える）
+page -> page : 通常の表示に戻る
+@enduml

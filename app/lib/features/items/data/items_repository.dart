@@ -194,7 +194,95 @@ class ItemsRepository {
     });
   }
 
+  // ---- 元に戻す ----
+
+  /// ステータス変更を元に戻す。戻せたら true。
+  ///
+  /// 自分が [after] に変えたままのとき（ほかの人が変更していないとき）だけ、
+  /// [before] に戻す。更新者は自分になる。担当・カゴ済みは次のように扱う。
+  /// - [before] が「十分」なら解除する。
+  /// - 「十分」に変えたことで解除した担当（[purchaseBefore]）は、自分の担当なら戻す。
+  ///   ほかの人の担当は、本人以外が書けないため解除したままにする。
+  /// - それ以外（残りわずか ⇄ 切れてる）は今の担当をそのまま残す。
+  Future<bool> revertStatus(
+    String itemId,
+    Member actor, {
+    required StockStatus before,
+    required StockStatus after,
+    required Purchase? purchaseBefore,
+  }) {
+    final ref = _items.doc(itemId);
+    return _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return false;
+      final current = _toItem(snap);
+      if (current.updatedByUid != actor.uid || current.status != after) {
+        return false;
+      }
+
+      final data = <String, Object?>{
+        'status': before.value,
+        ..._updatedFields(actor),
+      };
+      if (!before.needsBuying) {
+        data['purchase'] = null;
+      } else if (!after.needsBuying) {
+        data['purchase'] =
+            purchaseBefore != null && purchaseBefore.byUid == actor.uid
+            ? _purchaseFieldsOf(purchaseBefore)
+            : null;
+      }
+      tx.update(ref, data);
+      return true;
+    });
+  }
+
+  /// 購入完了を元に戻し、戻せた件数を返す。
+  ///
+  /// [before] は購入完了の直前のアイテム（自分のカゴ済み）。自分が「十分」に
+  /// したままのアイテムだけを、元のステータスとカゴ済みに戻す。
+  Future<int> revertPurchase(List<Item> before, Member actor) {
+    return _db.runTransaction<int>((tx) async {
+      // トランザクションでは、書き込みの前にすべて読み取る
+      final snaps = [
+        for (final item in before) await tx.get(_items.doc(item.id)),
+      ];
+      var reverted = 0;
+      for (var i = 0; i < before.length; i++) {
+        final snap = snaps[i];
+        if (!snap.exists) continue;
+        final current = _toItem(snap);
+        final old = before[i];
+        if (current.updatedByUid != actor.uid ||
+            current.status.needsBuying ||
+            current.purchase != null) {
+          continue;
+        }
+        final purchase = old.purchase;
+        tx.update(snap.reference, {
+          'status': old.status.value,
+          'purchase': purchase != null && purchase.byUid == actor.uid
+              ? _purchaseFieldsOf(purchase)
+              : null,
+          ..._updatedFields(actor),
+        });
+        reverted++;
+      }
+      return reverted;
+    });
+  }
+
   // ---- 変換 ----
+
+  /// 以前の担当・カゴ済みを書き戻すときの値（日時は元のまま）
+  static Map<String, Object> _purchaseFieldsOf(Purchase purchase) => {
+    'state': purchase.state.value,
+    'byUid': purchase.byUid,
+    'byName': purchase.byName,
+    'at': purchase.at != null
+        ? Timestamp.fromDate(purchase.at!)
+        : FieldValue.serverTimestamp(),
+  };
 
   /// 在庫情報を更新した人・日時
   static Map<String, Object> _updatedFields(Member actor) => {
@@ -231,6 +319,7 @@ class ItemsRepository {
       status: StockStatus.fromValue(data['status'] as String?),
       memo: data['memo'] as String? ?? '',
       purchase: _toPurchase(data['purchase']),
+      createdAt: _toDate(data['createdAt']),
       updatedAt: _toDate(data['updatedAt']),
       updatedByUid: data['updatedByUid'] as String? ?? '',
       updatedByName: data['updatedByName'] as String? ?? '',

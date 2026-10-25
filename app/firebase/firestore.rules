@@ -30,12 +30,14 @@ service cloud.firestore {
     }
 
     // 家族メンバー: 自分のドキュメントだけ作成・更新できる
+    // itemOrder は自分の並び順（カテゴリ ID → アイテム ID の配列）
     match /users/{uid} {
       allow read: if isMember();
       allow create, update: if isMember()
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['displayName', 'createdAt', 'updatedAt'])
-        && isText(request.resource.data.displayName, 1, 20);
+        && request.resource.data.keys().hasOnly(['displayName', 'itemOrder', 'createdAt', 'updatedAt'])
+        && isText(request.resource.data.displayName, 1, 20)
+        && request.resource.data.get('itemOrder', {}) is map;
     }
 
     match /categories/{categoryId} {

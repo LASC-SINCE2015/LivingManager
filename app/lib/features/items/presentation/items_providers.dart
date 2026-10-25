@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/data/member_repository.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/items_repository.dart';
 import '../domain/category.dart';
@@ -26,4 +27,11 @@ final itemsProvider = StreamProvider<List<Item>>((ref) {
 final shoppingCountProvider = Provider<int>((ref) {
   final items = ref.watch(itemsProvider).value ?? const [];
   return items.where((item) => item.status.needsBuying).length;
+});
+
+/// 自分の並び順（カテゴリ ID → アイテム ID の配列）
+final myItemOrderProvider = StreamProvider<Map<String, List<String>>>((ref) {
+  final uid = ref.watch(_uidProvider);
+  if (uid == null) return Stream.value(const {});
+  return ref.watch(memberRepositoryProvider).watchItemOrder(uid);
 });

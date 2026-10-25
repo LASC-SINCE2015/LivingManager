@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/relative_time.dart';
-import '../../../core/utils/text_normalizer.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/snack_bars.dart';
 import '../../auth/domain/member.dart';
@@ -11,6 +10,7 @@ import '../../items/data/items_repository.dart';
 import '../../items/domain/category.dart';
 import '../../items/domain/claim_result.dart';
 import '../../items/domain/item.dart';
+import '../../items/domain/item_order.dart';
 import '../../items/domain/stock_status.dart';
 import '../../items/presentation/item_actions.dart';
 import '../../items/presentation/item_edit_sheet.dart';
@@ -26,6 +26,7 @@ class ShoppingListPage extends ConsumerWidget {
     final categories = ref.watch(categoriesProvider);
     final items = ref.watch(itemsProvider);
     final actor = ref.watch(actorProvider);
+    final myOrder = ref.watch(myItemOrderProvider).value ?? const {};
 
     final myCartItems = [
       for (final item in items.value ?? const <Item>[])
@@ -64,7 +65,12 @@ class ShoppingListPage extends ConsumerWidget {
           final List<Item> list,
           final Member me,
         ) =>
-          _ShoppingList(categories: cats, items: list, me: me),
+          _ShoppingList(
+            categories: cats,
+            items: list,
+            me: me,
+            myOrder: myOrder,
+          ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -76,19 +82,32 @@ class ShoppingListPage extends ConsumerWidget {
     List<Item> items,
     Member actor,
   ) async {
-    // PoC では「元に戻す」の代わりに、実行前に確認する
-    final ok = await showConfirmDialog(
-      context,
-      message: '${items.length}件を購入完了にしますか？\n「十分」に戻り、買い物リストから消えます。',
-      okLabel: '購入完了',
-    );
-    if (!ok || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
+    final repository = ref.read(itemsRepositoryProvider);
     final result = await runWithErrorMessage(context, () async {
-      await ref.read(itemsRepositoryProvider).completePurchase(items, actor);
+      await repository.completePurchase(items, actor);
       return true;
     });
-    if (result == true) showMessage(messenger, '${items.length}件を購入完了にしました');
+    if (result != true) return;
+
+    showUndoMessage(
+      messenger,
+      '${items.length}件を購入完了にしました',
+      onUndo: () async {
+        try {
+          final reverted = await repository.revertPurchase(items, actor);
+          if (reverted == items.length) return;
+          showMessage(
+            messenger,
+            reverted == 0
+                ? 'ほかの人が変更したため戻せませんでした'
+                : 'ほかの人が変更したため、${items.length - reverted}件は戻せませんでした',
+          );
+        } catch (_) {
+          showMessage(messenger, '元に戻せませんでした。通信状態を確認してください');
+        }
+      },
+    );
   }
 }
 
@@ -97,11 +116,15 @@ class _ShoppingList extends StatelessWidget {
     required this.categories,
     required this.items,
     required this.me,
+    required this.myOrder,
   });
 
   final List<Category> categories;
   final List<Item> items;
   final Member me;
+
+  /// 自分の並び順（カテゴリ ID → アイテム ID の配列）
+  final Map<String, List<String>> myOrder;
 
   /// ほかの人がカゴに入れたアイテムか（薄く表示して末尾に置く）
   bool _isOthersCart(Item item) =>
@@ -116,15 +139,31 @@ class _ShoppingList extends StatelessWidget {
 
     final orderOf = {for (final c in categories) c.id: c.order};
     final nameOf = {for (final c in categories) c.id: c.name};
-    final otherOrder = orderOf[Category.otherId] ?? 9999;
+    // カテゴリが見つからないアイテムは「その他」として扱う（在庫一覧と同じ）
+    String categoryOf(Item item) => orderOf.containsKey(item.categoryId)
+        ? item.categoryId
+        : Category.otherId;
+
+    // カテゴリごとに、自分の並び順での位置を求めておく
+    final byCategory = <String, List<Item>>{};
+    for (final item in targets) {
+      byCategory.putIfAbsent(categoryOf(item), () => []).add(item);
+    }
+    final positionOf = <String, int>{
+      for (final MapEntry(key: categoryId, value: list) in byCategory.entries)
+        for (final (index, item)
+            in sortByMyOrder(list, myOrder[categoryId]).indexed)
+          item.id: index,
+    };
+
     int compare(Item a, Item b) {
       final cart = (_isOthersCart(a) ? 1 : 0) - (_isOthersCart(b) ? 1 : 0);
       if (cart != 0) return cart;
-      final order = (orderOf[a.categoryId] ?? otherOrder).compareTo(
-        orderOf[b.categoryId] ?? otherOrder,
+      final order = (orderOf[categoryOf(a)] ?? 0).compareTo(
+        orderOf[categoryOf(b)] ?? 0,
       );
       if (order != 0) return order;
-      return normalizeForCompare(a.name).compareTo(normalizeForCompare(b.name));
+      return positionOf[a.id]!.compareTo(positionOf[b.id]!);
     }
 
     final sections = [StockStatus.empty, StockStatus.low];

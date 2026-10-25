@@ -8,9 +8,11 @@ import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/no_access_page.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/items/presentation/stock_page.dart';
+import '../../features/settings/presentation/categories_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/shopping_list/presentation/shopping_list_page.dart';
 import 'home_shell.dart';
+import 'redirect.dart';
 
 /// 画面遷移の定義。画面を増やすときはここに GoRoute を追加する。
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -25,14 +27,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   });
 
   final router = GoRouter(
-    initialLocation: '/stock',
+    initialLocation: stockPath,
     refreshListenable: status,
-    redirect: (context, state) => redirectFor(status.value, state.matchedLocation),
+    redirect: (context, state) => redirectFor(status.value, state.uri),
     routes: [
-      GoRoute(path: '/splash', builder: (context, state) => const SplashPage()),
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(path: splashPath, builder: (context, state) => const SplashPage()),
+      GoRoute(path: loginPath, builder: (context, state) => const LoginPage()),
       GoRoute(
-        path: '/no_access',
+        path: noAccessPath,
         builder: (context, state) => const NoAccessPage(),
       ),
       StatefulShellRoute.indexedStack(
@@ -42,7 +44,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/stock',
+                path: stockPath,
                 builder: (context, state) => const StockPage(),
               ),
             ],
@@ -60,6 +62,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/settings',
                 builder: (context, state) => const SettingsPage(),
+                routes: [
+                  GoRoute(
+                    path: 'categories',
+                    builder: (context, state) => const CategoriesPage(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -74,27 +82,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   });
   return router;
 });
-
-/// 判定結果と今いる画面から、移動先を決める（移動しないなら null）
-String? redirectFor(AccessStatus status, String location) {
-  const splash = '/splash';
-  const login = '/login';
-  const noAccess = '/no_access';
-  switch (status) {
-    case AccessStatus.checking:
-    case AccessStatus.error:
-      // 権限エラー画面はサインアウト中も表示し続ける
-      if (location == noAccess || location == splash) return null;
-      return splash;
-    case AccessStatus.signedOut:
-      if (location == login || location == noAccess) return null;
-      return login;
-    case AccessStatus.denied:
-      return location == noAccess ? null : noAccess;
-    case AccessStatus.allowed:
-      if (location == login || location == noAccess || location == splash) {
-        return '/stock';
-      }
-      return null;
-  }
-}

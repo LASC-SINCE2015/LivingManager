@@ -27,6 +27,13 @@ rectangle "items" {
   rectangle "categoriesProvider\nStream: List of Category" as categories
   rectangle "itemsProvider\nStream: List of Item" as itemList
   rectangle "shoppingCountProvider" as count
+  rectangle "myItemOrderProvider\nStream: 自分の並び順" as myOrder
+  rectangle "categoriesRepositoryProvider" as catRepo
+  rectangle "isOfflineProvider" as offline
+}
+
+rectangle "settings" {
+  rectangle "appVersionProvider\nFuture: String" as version
 }
 
 authRepo --> fa
@@ -51,7 +58,16 @@ categories --> itemsRepo
 itemList --> currentUser : uid
 itemList --> itemsRepo
 count --> itemList
+myOrder --> currentUser : uid
+myOrder --> memberRepo
+offline --> currentUser : uid
 
 router --> accessStatus : listen
 router --> deniedEmail : 拒否時に設定
+note bottom of offline
+  categoriesRepositoryProvider と isOfflineProvider も
+  firestoreProvider を使う（線は省略）。
+  isOfflineProvider は items の
+  キャッシュ状態を購読する。
+end note
 @enduml

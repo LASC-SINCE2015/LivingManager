@@ -53,6 +53,7 @@ class Item {
     required this.status,
     required this.memo,
     required this.purchase,
+    required this.createdAt,
     required this.updatedAt,
     required this.updatedByUid,
     required this.updatedByName,
@@ -66,6 +67,9 @@ class Item {
 
   /// 買い物の状況。誰も担当していなければ null
   final Purchase? purchase;
+
+  /// 追加した日時（保存中は null）。並び順が未設定のときに使う
+  final DateTime? createdAt;
 
   /// 在庫情報を最後に更新した日時（保存中は null）
   final DateTime? updatedAt;

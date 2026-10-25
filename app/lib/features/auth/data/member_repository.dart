@@ -22,6 +22,31 @@ class MemberRepository {
     return Member(uid: uid, displayName: data['displayName'] as String? ?? '');
   });
 
+  /// 自分の並び順（カテゴリ ID → アイテム ID を表示順に並べた配列）
+  Stream<Map<String, List<String>>> watchItemOrder(String uid) =>
+      _doc(uid).snapshots().map((snap) {
+        final value = snap.data()?['itemOrder'];
+        if (value is! Map) return const {};
+        return {
+          for (final entry in value.entries)
+            if (entry.key is String && entry.value is List)
+              entry.key as String: [
+                for (final id in entry.value as List)
+                  if (id is String) id,
+              ],
+        };
+      });
+
+  /// あるカテゴリの並び順を丸ごと保存する
+  Future<void> saveCategoryOrder(
+    String uid,
+    String categoryId,
+    List<String> itemIds,
+  ) => _doc(uid).update({
+    FieldPath(['itemOrder', categoryId]): itemIds,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
   /// 初回ログイン時に、自分のドキュメントがなければ作る
   Future<void> ensureExists(User user) async {
     final snap = await _doc(user.uid).get();

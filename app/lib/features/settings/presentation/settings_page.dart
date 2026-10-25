@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/snack_bars.dart';
@@ -7,6 +9,12 @@ import '../../../shared/widgets/text_input_dialog.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/member_repository.dart';
 import '../../auth/presentation/auth_providers.dart';
+
+/// アプリのバージョン（例: 1.0.0+1）
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return '${info.version}+${info.buildNumber}';
+});
 
 /// 設定画面（タブ3）
 class SettingsPage extends ConsumerWidget {
@@ -53,6 +61,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final actor = ref.watch(actorProvider);
+    final version = ref.watch(appVersionProvider).value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
@@ -77,11 +86,24 @@ class SettingsPage extends ConsumerWidget {
             title: const Text('ログイン中のアカウント'),
             subtitle: Text(user?.email ?? ''),
           ),
+          ListTile(
+            leading: const Icon(Icons.category_outlined),
+            title: const Text('カテゴリ管理'),
+            subtitle: const Text('追加・名前変更・並べ替え・削除'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/categories'),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('ログアウト'),
             onTap: () => _signOut(context, ref),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('バージョン'),
+            subtitle: Text(version ?? ''),
           ),
         ],
       ),

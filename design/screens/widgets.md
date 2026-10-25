@@ -8,7 +8,8 @@
 - Firestore のデータは `categoriesProvider` / `itemsProvider` を `ref.watch` して表示する。どちらかがエラーなら「読み込めませんでした。通信状態を確認してください」、読み込み中はインジケーターを表示する。
 - 保存処理は `runWithErrorMessage` で包み、失敗したら SnackBar「保存できませんでした。通信状態を確認してください」を出す。
 - 更新日時は `formatRelativeTime`（`core/utils/relative_time.dart`）で「たった今」「N分前」などにする。表示はデータが変わって描き直されたときに更新され、時間の経過だけでは更新しない。
-- 名前の比較・並べ替えには `normalizeForCompare`（`core/utils/text_normalizer.dart`）を使う。前後の空白を除き、全角英数字を半角に、カタカナをひらがなに、英字を小文字にそろえる。
+- 名前の重複チェックと検索には `normalizeForCompare`（`core/utils/text_normalizer.dart`）を使う。前後の空白を除き、全角英数字を半角に、カタカナをひらがなに、英字を小文字にそろえる。
+- アイテムの並び順は、在庫一覧・買い物リストとも自分の並び順（`myItemOrderProvider` と `sortByMyOrder`）で決める（[data/firestore_model.md](../data/firestore_model.md) の「自分の並び順」）。
 - 更新者・担当者は、表示名をそのまま表示する（「さん」は付けない。表示名に「お父さん」などを設定する想定）。
 
 ## 2. 共通ウィジェット（`shared/widgets/`）
@@ -17,7 +18,7 @@
 |---|---|
 | `confirm_dialog.dart` | `showConfirmDialog`: 確認ダイアログ。OK で true。`destructive` で OK ボタンをエラー色にする（削除用） |
 | `text_input_dialog.dart` | `showTextInputDialog`: 1 行入力のダイアログ。`validator` は前後の空白を除いた値で呼ばれる。保存で値を、キャンセルで null を返す |
-| `snack_bars.dart` | `showMessage`: SnackBar を出す（前の SnackBar は閉じる）。`runWithErrorMessage`: 保存処理を実行し、失敗したらエラーを表示して null を返す |
+| `snack_bars.dart` | `showMessage`: SnackBar を出す（前の SnackBar は閉じる）。`runWithErrorMessage`: 保存処理を実行し、失敗したらエラーを表示して null を返す。`showUndoMessage`: 「元に戻す」ボタン付きの SnackBar を 5 秒表示する（ボタン付きでも時間がたったら消える） |
 
 items 機能の中で共通に使うもの（`features/items/presentation/`）:
 
@@ -25,27 +26,53 @@ items 機能の中で共通に使うもの（`features/items/presentation/`）:
 |---|---|
 | `status_selector.dart` | `StatusSelector`: 3 段階の `SegmentedButton`。横幅いっぱい、選択中の背景をステータスの色（25% の濃さ）にする |
 | `status_colors.dart` | ステータスの色（十分=緑・残りわずか=黄・切れてる=赤）と、薄い背景の上の文字色 |
-| `item_actions.dart` | `changeItemStatus`（「十分」にするとき、ほかの人の担当があれば確認）、`deleteItemWithConfirm`、`purchaseLabel`（「🛒 〇〇が買う予定」などの文） |
+| `item_actions.dart` | `changeItemStatus`（「十分」にするとき、ほかの人の担当があれば確認。保存後に「元に戻す」付きのメッセージを出す）、`deleteItemWithConfirm`、`purchaseLabel`（「🛒 〇〇が買う予定」などの文） |
 | `item_edit_sheet.dart` | `showItemEditSheet` / `ItemEditSheet`: 追加・編集のボトムシート |
 
 ## 3. 画面ごとの構成
 
 ### 在庫一覧（`StockPage`）
 
+`StockPage` は `ConsumerStatefulWidget`。検索文字・選択中のカテゴリ・並べ替えモードかどうか・保存中の並び（`_pendingOrder`）を状態として持つ。
+
+通常の表示:
+
 ```
 Scaffold
-├─ AppBar「在庫一覧」
-├─ body: _StockList（ListView）
-│  └─ カテゴリごとに（order 順）
-│     ├─ 見出し「カテゴリ名（件数）」
-│     └─ ItemCard × アイテム数
-└─ FloatingActionButton（＋）→ showItemEditSheet
+├─ AppBar「在庫一覧」＋「並べ替え」ボタン（Icons.swap_vert）
+├─ body: Column
+│  ├─ _SearchArea
+│  │  ├─ 検索欄（TextField。入力中は ✕ で消せる）
+│  │  └─ カテゴリフィルター（横スクロールの ChoiceChip「すべて」＋各カテゴリ）
+│  └─ _StockList（ListView）
+│     └─ カテゴリごとに（order 順）
+│        ├─ 見出し「カテゴリ名（件数）」
+│        └─ ItemCard × アイテム数（自分の並び順）
+└─ FloatingActionButton（＋）→ showItemEditSheet（選択中のカテゴリを初期値に）
 ```
 
-- アイテムは、カテゴリの中で `normalizeForCompare` した名前の順に並べる。ステータスが変わっても位置は動かない。漢字は文字コード順になり、読みの順にはならない。
-- アイテムが 0 件のカテゴリも見出しを出す（件数 0）。アイテムが 1 件もないときは案内文だけを表示する。
+- 検索: アイテム名とメモを `normalizeForCompare` して部分一致。空白だけの入力は検索なしとして扱う。カテゴリフィルターと同時に使うと、両方に合うものだけを出す。
+- 検索・絞り込み中は 0 件のカテゴリを出さず、結果が 0 件なら「該当するアイテムがありません」。検索・絞り込みをしていないときは、0 件のカテゴリも見出しを出す。アイテムが 1 件もないときは案内文だけを表示する。
+- アイテムはカテゴリの中で自分の並び順に並べる。ステータスが変わっても位置は動かない。
 - `ItemCard`: 名前、︙メニュー（編集・削除）、メモ（1 行で省略）、`StatusSelector`、「更新者・日時」、担当・カゴ済みがあればその文。
-- **未実装**: 検索バー、カテゴリフィルター、ステータス変更後の「元に戻す」SnackBar。
+- ステータスを変えると、`showUndoMessage`「『〇〇』を「切れてる」にしました [元に戻す]」を出す。元に戻す処理は [sequences/undo.md](../sequences/undo.md)。
+
+並べ替えモード（「並べ替え」ボタンで切り替え）:
+
+```
+Scaffold
+├─ AppBar「並べ替え中」＋「完了」ボタン
+└─ body: _ReorderView（CustomScrollView）
+   └─ カテゴリごとに（order 順、アイテムがあるカテゴリだけ）
+      ├─ 見出し
+      └─ SliverReorderableList
+         └─ アイテム名だけの行 ＋ 右端のつまみ（ReorderableDragStartListener）
+```
+
+- 検索・絞り込み中に「並べ替え」を押すと、検索・絞り込みを解除してからモードに入る。モード中は検索欄・フィルター・＋ボタンを出さない。
+- カテゴリごとに別の `SliverReorderableList` にしているため、ほかのカテゴリへは動かせない。行全体ではなくつまみだけでドラッグを始める（`buildDefaultDragHandles` を使わない）。ドラッグ中も外側の `CustomScrollView` が自動でスクロールする。
+- 指を離したら `moveItem` で新しい並びを作り、`saveCategoryOrder` で保存する。保存が終わるまでは `_pendingOrder` の並びを先に表示し、失敗したら `_pendingOrder` を消して元の並びに戻し、エラーを表示する。処理の流れは [sequences/reorder.md](../sequences/reorder.md)。
+- ほかのタブに切り替えたら通常の表示に戻す。go_router は非表示のタブを `TickerMode` で無効にするので、`didChangeDependencies` で `TickerMode.valuesOf(context).enabled` が false になったことを検知する。
 
 ### アイテム追加・編集（`ItemEditSheet`）
 
@@ -57,7 +84,7 @@ Scaffold
   - メモ: 200 文字まで、2〜5 行。
 - 保存時、選んでいたカテゴリがほかの人に削除されていたら「その他」にする。
 - 編集中にほかの人がアイテムを削除したら、シートを閉じて「このアイテムは削除されました」と表示する。
-- 初期値: カテゴリは「その他」（呼び出し元が指定した場合はそのカテゴリ）、ステータスは「十分」（買い物リストから開いたときは「切れてる」）。カテゴリフィルターが未実装のため、在庫一覧からはカテゴリを指定していない。
+- 初期値: カテゴリは「その他」（呼び出し元が指定した場合はそのカテゴリ。在庫一覧ではカテゴリフィルターで選んでいるカテゴリ）、ステータスは「十分」（買い物リストから開いたときは「切れてる」）。
 
 ### 買い物リスト（`ShoppingListPage`）
 
@@ -71,7 +98,7 @@ Scaffold
 └─ bottomNavigationBar: 「購入完了（N件）」ボタン
 ```
 
-- 並び順（各セクション内）: ① ほかの人がカゴ済みのものを末尾に、② カテゴリの `order` 順、③ 名前の順。
+- 並び順（各セクション内）: ① ほかの人がカゴ済みのものを末尾に、② カテゴリの `order` 順、③ 同じカテゴリ内は自分の並び順。買い物リストでは並べ替えできない。
 - `_ShoppingTile`: チェックボックス、名前、メモ（全文）、「カテゴリ・更新者・日時 ステータスに変更」、担当・カゴ済みの文（24 時間以上前なら「（1日以上前）」を付けて薄く表示）、操作ボタン。
 - 操作ボタン:
 
@@ -83,13 +110,36 @@ Scaffold
 | 自分のカゴ済み | なし | 外せる（担当中に戻る） |
 | ほかの人のカゴ済み | なし | 押せない（行全体を 50% の薄さで表示） |
 
-- 「購入完了」: 自分のカゴ済みが 0 件なら押せない。押すと確認ダイアログを出し、OK で一括更新して「N件を購入完了にしました」と表示する。仕様の「元に戻す」SnackBar は**未実装**で、代わりに確認ダイアログを出している。
+- 「購入完了」: 自分のカゴ済みが 0 件なら押せない。押すと確認なしで一括更新し、`showUndoMessage`「N件を購入完了にしました [元に戻す]」を出す。元に戻したときに一部しか戻せなかった場合は「ほかの人が変更したため、N件は戻せませんでした」と表示する。
 - 処理の流れは [sequences/shopping.md](../sequences/shopping.md) を参照。
 
 ### 設定（`SettingsPage`）
 
-- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、ログアウト（確認あり）。
-- **未実装**: カテゴリ管理への入り口、アプリのバージョン表示。
+- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
+
+### カテゴリ管理（`CategoriesPage`）
+
+```
+Scaffold
+├─ AppBar「カテゴリ管理」
+├─ body: ReorderableListView
+│  └─ _CategoryTile × カテゴリ数（order 順、「その他」は常に末尾）
+│     ├─ カテゴリ名・所属アイテム数
+│     ├─ つまみ（「その他」には出さない）
+│     └─ ︙メニュー「削除」（「その他」には出さない）
+└─ FloatingActionButton（＋）→ 名前を入力して追加
+```
+
+- 追加・名前変更は `showTextInputDialog`。入力チェックは `validateCategoryName`（`items/domain/category_name_rules.dart`。1〜20 文字・ほかのカテゴリと同じ名前は不可。名前変更では自分自身との重複を無視する）。追加は `ItemsRepository.addCategory`、名前変更は `CategoriesRepository.rename`。
+- 並べ替え: `onReorderItem` で、移動先を「その他」より上に制限する。並べ終えたら `CategoriesRepository.reorder` で order を 1 から振り直す。
+- 削除: 確認ダイアログ「『〇〇』を削除しますか？ このカテゴリのアイテム N 件は『その他』に移動します」のあと、`CategoriesRepository.delete`。
+- 所属アイテム数は、存在しないカテゴリに属するアイテムを「その他」に数える（在庫一覧の表示に合わせる）。
+
+### メイン画面の枠（`HomeShell`）
+
+- 画面幅 768px 以上: `Row`（`NavigationRail`（ラベル表示・買い物リストに `Badge`）＋ 縦線 ＋ 各タブの画面）。
+- 768px 未満: 各タブの画面 ＋ 画面下部の `NavigationBar`。
+- オフライン表示: `isOfflineProvider` が true のとき、画面上部に「オフラインです。変更は接続が戻ると反映されます」のバナーを出す。バナーが上端の余白（ステータスバー分）を使うため、その下の画面からは上の余白を取り除く（`MediaQuery.removePadding`）。
 
 ### ログイン・アクセス権限エラー・スプラッシュ
 

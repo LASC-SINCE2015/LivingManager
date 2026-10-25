@@ -7,19 +7,22 @@ state "/splash\n判定中・準備中" as Splash
 state "/login\nログイン" as Login
 state "/no_access\nアクセス権限エラー" as NoAccess
 
-state "HomeShell（画面下部のタブ）" as Shell {
+state "HomeShell（タブ / PC はサイドナビ）" as Shell {
   state "/stock\n在庫一覧" as Stock
   state "/shopping_list\n買い物リスト" as Shopping
   state "/settings\n設定" as Settings
+  state "/settings/categories\nカテゴリ管理" as Categories
   Stock -right-> Shopping : タブ
   Shopping -right-> Settings : タブ
+  Settings --> Categories : カテゴリ管理
+  Categories --> Settings : 戻る
 }
 
 state "アイテム追加・編集\n（ボトムシート）" as EditSheet
 
 [*] --> Splash : 起動
 Splash --> Login : 未ログイン
-Splash --> Stock : 利用できる
+Splash --> Stock : 利用できる\n（from があればその画面）
 Splash --> NoAccess : 許可されていない
 Login --> Splash : ログイン成功
 NoAccess --> Login : 別のアカウントでログイン

@@ -18,3 +18,6 @@
 | [0003](0003_sort_on_client.md) | 並べ替え・絞り込みはアプリ側で行う | 採用 |
 | [0004](0004_login_with_popup.md) | Google ログインはポップアップ方式にする | 採用 |
 | [0005](0005_purchase_does_not_change_updater.md) | 担当・カゴ済みだけの変更では更新者を変えない | 採用 |
+| [0006](0006_item_order_per_user.md) | アイテムの並び順はユーザーごとに持つ | 採用 |
+| [0007](0007_undo_sets_updater_to_self.md) | 「元に戻す」では更新者を自分にし、ほかの人の担当は戻さない | 採用 |
+| [0008](0008_offline_from_cache_state.md) | オフライン判定は Firestore のキャッシュ状態を使う | 採用 |

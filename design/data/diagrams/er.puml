@@ -8,6 +8,7 @@ entity "users" as users {
   * uid : ドキュメント ID
   --
   displayName : string
+  itemOrder : map（カテゴリ ID → アイテム ID の配列）
   createdAt : timestamp
   updatedAt : timestamp
 }
@@ -46,4 +47,5 @@ categories ||--o{ items : categoryId
 users ||--o{ items : updatedByUid
 items ||--o| purchase : purchase
 users ||--o{ purchase : byUid
+users }o..o{ items : itemOrder（自分の並び順）
 @enduml

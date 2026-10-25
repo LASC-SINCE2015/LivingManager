@@ -40,11 +40,33 @@ Future<void> changeItemStatus(
     if (!ok || !context.mounted) return;
   }
 
-  await runWithErrorMessage(
-    context,
-    () => ref
-        .read(itemsRepositoryProvider)
-        .changeStatus(item.id, next, actor),
+  final messenger = ScaffoldMessenger.of(context);
+  final repository = ref.read(itemsRepositoryProvider);
+  final saved = await runWithErrorMessage(context, () async {
+    await repository.changeStatus(item.id, next, actor);
+    return true;
+  });
+  if (saved != true) return;
+
+  showUndoMessage(
+    messenger,
+    '『${item.name}』を「${next.label}」にしました',
+    onUndo: () async {
+      try {
+        final reverted = await repository.revertStatus(
+          item.id,
+          actor,
+          before: item.status,
+          after: next,
+          purchaseBefore: purchase,
+        );
+        if (!reverted) {
+          showMessage(messenger, 'ほかの人が変更したため戻せませんでした');
+        }
+      } catch (_) {
+        showMessage(messenger, '元に戻せませんでした。通信状態を確認してください');
+      }
+    },
   );
 }
 
