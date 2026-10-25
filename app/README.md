@@ -1,6 +1,6 @@
 # app（Flutter Web アプリ本体）
 
-家庭内在庫管理アプリの本体です。フォルダ構成の考え方は [design/architecture/folder_structure.md](../design/architecture/folder_structure.md) を参照してください。
+家庭内在庫管理アプリ「おうちストック」の本体です。フォルダ構成の考え方は [design/architecture/folder_structure.md](../design/architecture/folder_structure.md) を参照してください。
 
 ## 前提ツール
 

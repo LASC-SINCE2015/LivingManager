@@ -53,13 +53,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.inventory_2,
-                  size: 64,
-                  color: theme.colorScheme.primary,
+                // アプリアイコンと同じ絵（tools/make_app_icon.java で生成）
+                Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 112,
+                  height: 112,
+                  semanticLabel: 'アプリのアイコン',
                 ),
-                const SizedBox(height: 16),
-                Text('家庭内在庫管理', style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 20),
+                Text(
+                  'おうちストック',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
+                    letterSpacing: 1,
+                  ),
+                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,

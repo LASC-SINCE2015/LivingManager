@@ -187,6 +187,6 @@ Scaffold（HomeShell の外。ナビゲーションなし）
 
 ### ログイン・アクセス権限エラー・スプラッシュ
 
-- `LoginPage`: 「Googleでログイン」ボタン。ログイン中はボタンを押せなくし、`LinearProgressIndicator` を表示する。ポップアップを閉じた場合は「ログインがキャンセルされました」、それ以外の失敗は「ログインできませんでした（エラーコード）」。
+- `LoginPage`: アプリのアイコン（`assets/images/app_icon.png` を `Image.asset` で表示）、アプリ名「おうちストック」、「Googleでログイン」ボタン。ログイン中はボタンを押せなくし、`LinearProgressIndicator` を表示する。ポップアップを閉じた場合は「ログインがキャンセルされました」、それ以外の失敗は「ログインできませんでした（エラーコード）」。
 - `NoAccessPage`: 表示した直後（最初のフレームの後）にサインアウトする。メールアドレスは `deniedEmailProvider` から表示する。
 - `SplashPage`: `AccessStatus.error` のときだけ「接続できませんでした」「再試行」「ログアウト」を表示し、それ以外はインジケーター。
