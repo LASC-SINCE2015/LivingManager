@@ -12,7 +12,7 @@ import java.io.File;
 import javax.imageio.ImageIO;
 
 /**
- * アプリアイコン（にっこり顔のおうち）の PNG を作る。
+ * アプリアイコン（にっこり顔のおうち）の PNG を作る。ログイン画面などに出す画像も作る。
  *
  * 使い方（リポジトリのルートで実行。Java 11 以降ならコンパイル不要）:
  *   java tools/make_app_icon.java app/web
@@ -43,6 +43,8 @@ public class make_app_icon {
     // iPhone は透明な部分を黒く塗るので、端まで背景を塗った絵にする（角は iPhone が丸める）
     write(new File(web, prefix + "apple-180.png"), 180, true);
     write(new File(web, prefix + "favicon-32.png"), 32, false);
+    // アプリの画面（ログイン画面など）に表示する画像。アプリに同梱するので版は入れない
+    write(new File(web.getParentFile(), "assets/images/app_icon.png"), 384, false);
   }
 
   /** maskable は端まで背景で塗り、絵は切り取られない中央 80% に収める */
