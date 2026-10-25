@@ -1,0 +1,49 @@
+@startuml er
+!pragma layout smetana
+' Firestore のコレクションの関係（ER 図）。purchase は items の中のマップ
+skinparam defaultFontName "Meiryo"
+hide circle
+
+entity "users" as users {
+  * uid : ドキュメント ID
+  --
+  displayName : string
+  createdAt : timestamp
+  updatedAt : timestamp
+}
+
+entity "categories" as categories {
+  * id : ドキュメント ID（water / other は固定）
+  --
+  name : string
+  order : number
+  createdAt : timestamp
+  updatedAt : timestamp
+}
+
+entity "items" as items {
+  * id : ドキュメント ID
+  --
+  name : string
+  categoryId : string
+  status : sufficient / low / empty
+  memo : string
+  purchase : map または null
+  createdAt : timestamp
+  updatedAt : timestamp
+  updatedByUid : string
+  updatedByName : string
+}
+
+entity "purchase（items 内のマップ）" as purchase {
+  state : planned / in_cart
+  byUid : string
+  byName : string
+  at : timestamp
+}
+
+categories ||--o{ items : categoryId
+users ||--o{ items : updatedByUid
+items ||--o| purchase : purchase
+users ||--o{ purchase : byUid
+@enduml

@@ -1,0 +1,31 @@
+@startuml screen_flow
+!pragma layout smetana
+' 画面（ルート）とその間の遷移
+skinparam defaultFontName "Meiryo"
+
+state "/splash\n判定中・準備中" as Splash
+state "/login\nログイン" as Login
+state "/no_access\nアクセス権限エラー" as NoAccess
+
+state "HomeShell（画面下部のタブ）" as Shell {
+  state "/stock\n在庫一覧" as Stock
+  state "/shopping_list\n買い物リスト" as Shopping
+  state "/settings\n設定" as Settings
+  Stock -right-> Shopping : タブ
+  Shopping -right-> Settings : タブ
+}
+
+state "アイテム追加・編集\n（ボトムシート）" as EditSheet
+
+[*] --> Splash : 起動
+Splash --> Login : 未ログイン
+Splash --> Stock : 利用できる
+Splash --> NoAccess : 許可されていない
+Login --> Splash : ログイン成功
+NoAccess --> Login : 別のアカウントでログイン
+Settings --> Splash : ログアウト
+
+Stock --> EditSheet : ＋ / 編集
+Shopping --> EditSheet : ＋（初期ステータス 切れてる）
+EditSheet --> Stock : 保存・キャンセル
+@enduml

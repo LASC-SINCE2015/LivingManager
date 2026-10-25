@@ -1,0 +1,38 @@
+@startuml login
+!pragma layout smetana
+' 起動からログイン、利用開始の準備までの流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "家族" as user
+participant "LoginPage" as page
+participant "GoRouter\n(appRouterProvider)" as router
+participant "accessCheckProvider" as check
+participant "AuthRepository" as authRepo
+participant "MemberRepository" as memberRepo
+participant "ItemsRepository" as itemsRepo
+participant "Firebase\nAuthentication" as auth
+database "Firestore" as fs
+
+user -> page : 「Googleでログイン」
+page -> authRepo : signInWithGoogle()
+authRepo -> auth : signInWithPopup\n(prompt=select_account)
+auth --> authRepo : ログイン成功
+auth -> check : authStateChanges（ユーザー）
+check -> router : checking
+router -> router : /splash へ
+
+check -> authRepo : 利用許可の確認
+authRepo --> check : 結果
+alt 許可されていない
+  check -> router : denied
+  router -> router : /no_access へ\n（表示後に自動サインアウト）
+else 許可されている
+  check -> memberRepo : ensureExists(user)
+  memberRepo -> fs : users/{uid} を get\nなければ set
+  check -> itemsRepo : ensureInitialCategories()
+  itemsRepo -> fs : categories/water, other を get\nなければ set
+  check -> router : allowed
+  router -> router : /stock へ
+end
+@enduml
