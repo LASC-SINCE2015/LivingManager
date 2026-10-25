@@ -138,6 +138,20 @@ describe('users', () => {
     const data = { displayName: 'アリス', itemOrder: 'x', createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     await assertFails(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
   });
+
+  it('閉じているカテゴリは自分のドキュメントにだけ保存できる', async () => {
+    const data = { displayName: 'アリス', createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
+    await assertSucceeds(setDoc(doc(dbOf(BOB), 'users', BOB.uid), { ...data, displayName: 'ボブ' }));
+    const hidden = { hiddenCategories: ['water'], updatedAt: serverTimestamp() };
+    await assertSucceeds(updateDoc(doc(dbOf(ALICE), 'users', ALICE.uid), hidden));
+    await assertFails(updateDoc(doc(dbOf(ALICE), 'users', BOB.uid), hidden));
+  });
+
+  it('閉じているカテゴリは配列でなければ保存できない', async () => {
+    const data = { displayName: 'アリス', hiddenCategories: 'water', createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await assertFails(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
+  });
 });
 
 describe('categories', () => {

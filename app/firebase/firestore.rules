@@ -37,13 +37,15 @@ service cloud.firestore {
 
     // 家族メンバー: 自分のドキュメントだけ作成・更新できる
     // itemOrder は自分の並び順（カテゴリ ID → アイテム ID の配列）
+    // hiddenCategories は自分が閉じているカテゴリの ID の配列
     match /users/{uid} {
       allow read: if isMember();
       allow create, update: if isMember()
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['displayName', 'itemOrder', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['displayName', 'itemOrder', 'hiddenCategories', 'createdAt', 'updatedAt'])
         && isText(request.resource.data.displayName, 1, 20)
-        && request.resource.data.get('itemOrder', {}) is map;
+        && request.resource.data.get('itemOrder', {}) is map
+        && request.resource.data.get('hiddenCategories', []) is list;
     }
 
     match /categories/{categoryId} {

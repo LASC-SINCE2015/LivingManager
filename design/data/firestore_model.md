@@ -53,6 +53,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | 初回ログイン時のメンバー登録 | `MemberRepository.ensureExists` | get → なければ set | `displayName`（Google アカウントの名前、なければメールアドレスの @ より前。20 文字まで）, `createdAt`, `updatedAt` |
 | 表示名の変更 | `updateDisplayName` | update | `displayName`, `updatedAt` |
 | 自分の並び順の保存 | `MemberRepository.saveCategoryOrder` | update | `itemOrder.<カテゴリ ID>`（そのカテゴリのアイテム ID の配列を丸ごと）, `updatedAt` |
+| 閉じているカテゴリの保存 | `MemberRepository.saveHiddenCategories` | update | `hiddenCategories`（閉じているカテゴリ ID の配列を丸ごと）, `updatedAt` |
 | 初期カテゴリの作成 | `ItemsRepository.ensureInitialCategories` | カテゴリごとに get → なければ set | `water`（水回り・order 1）, `other`（その他・order 9999）。ID が固定なので、複数人が同時に作っても重複しない |
 | カテゴリの追加 | `addCategory` | set（ID はクライアントで採番） | `order` は「その他」以外の最大値 + 1 |
 | カテゴリの名前変更 | `CategoriesRepository.rename` | update | `name`, `updatedAt` |
@@ -130,6 +131,13 @@ Firestore のデータから domain のクラスに変換するときの決ま�
   3. 配列にあってもアイテムがない ID は無視する。
 - 保存: 並べ替えモードで指を離したとき、`moveItem` で作った「そのカテゴリに今あるアイテムの ID の並び」を `saveCategoryOrder` で丸ごと書く。削除済み・移動済みのアイテムは自然に取り除かれる。
 - 在庫一覧（カテゴリのセクション内）と買い物リスト（カテゴリ順のあと）の両方で使う。カテゴリが見つからないアイテムは「その他」として扱い、「その他」の配列で並べる。
+
+## 6-2. 閉じているカテゴリ（`users.hiddenCategories`）
+
+- 形: 在庫一覧で自分が閉じているカテゴリ ID の配列（ユーザーごと）。
+- 読み取り: `myHiddenCategoriesProvider`（`MemberRepository.watchHiddenCategories`）。配列でない値・文字列でない要素は無視する。
+- 保存: 見出しを押したとき、または「すべて開く / すべて閉じる」を押したときに、`saveHiddenCategories` で配列を丸ごと書く。保存が終わるまでは画面側の `_pendingHidden` を先に使う。
+- 削除されたカテゴリの ID は残っても表示に影響しないので、取り除かない。
 
 ## 7. 改善意見（`feedback`）
 
