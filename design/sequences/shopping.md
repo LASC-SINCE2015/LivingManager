@@ -42,7 +42,6 @@ Firestore のトランザクションは、読んだドキュメントがコミ�
 元データ: [complete_purchase.puml](diagrams/complete_purchase.puml)
 
 1. 対象は、画面に表示している一覧のうち「自分がカゴ済みにした、残りわずか・切れてるのアイテム」。
-2. 確認ダイアログ「N件を購入完了にしますか？」で OK を押したら、`completePurchase` が 1 回のバッチで `status: sufficient`, `purchase: null`, 更新者（自分）を書く。
-3. 成功したら「N件を購入完了にしました」と表示する。買い物リストからはリアルタイムに消える。
-
-仕様の「元に戻す」SnackBar は**未実装**（PoC では確認ダイアログで代用）。
+2. 確認なしで、`completePurchase` が 1 回のバッチで `status: sufficient`, `purchase: null`, 更新者（自分）を書く。
+3. 成功したら「N件を購入完了にしました [元に戻す]」を 5 秒表示する。買い物リストからはリアルタイムに消える。
+4. 「元に戻す」を押すと `revertPurchase` で戻す（[undo.md](undo.md)）。

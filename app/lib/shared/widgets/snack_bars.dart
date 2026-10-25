@@ -21,3 +21,22 @@ Future<T?> runWithErrorMessage<T>(
     return null;
   }
 }
+
+/// 「元に戻す」ボタン付きのメッセージを 5 秒間表示する
+void showUndoMessage(
+  ScaffoldMessengerState messenger,
+  String message, {
+  required VoidCallback onUndo,
+}) {
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 5),
+        // ボタン付きでも時間がたったら消えるようにする
+        persist: false,
+        action: SnackBarAction(label: '元に戻す', onPressed: onUndo),
+      ),
+    );
+}

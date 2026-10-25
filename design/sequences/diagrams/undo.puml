@@ -1,0 +1,29 @@
+@startuml undo
+!pragma layout smetana
+' ステータス変更の「元に戻す」（ほかの人が変更していたら戻さない）の流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "家族" as user
+participant "StockPage\n（changeItemStatus）" as page
+participant "ItemsRepository" as repo
+database "Firestore" as fs
+
+user -> page : ステータスを「切れてる」に変える
+page -> page : 操作前のステータス・担当を覚えておく
+page -> repo : changeStatus(アイテム, 切れてる, 自分)
+repo -> fs : update（status・更新者）
+page -> user : 「『〇〇』を「切れてる」にしました [元に戻す]」（5 秒）
+
+user -> page : 「元に戻す」
+page -> repo : revertStatus(アイテム, 自分,\nbefore, after, purchaseBefore)
+repo -> fs : トランザクション開始・アイテムを読む
+alt 更新者が自分 かつ ステータスが after のまま
+  repo -> fs : update（status = before、更新者 = 自分、\n担当は「自分の担当だけ」戻す）
+  fs --> repo : コミット成功
+  repo --> page : true
+else ほかの人が変更していた
+  repo --> page : false（何も書かない）
+  page -> user : 「ほかの人が変更したため戻せませんでした」
+end
+@enduml

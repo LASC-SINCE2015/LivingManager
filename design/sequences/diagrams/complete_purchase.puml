@@ -10,13 +10,12 @@ participant "ItemsRepository" as repo
 database "Firestore" as fs
 
 user -> page : 「購入完了（N件）」
-page -> page : 対象 = 自分のカゴ済みのアイテム
-page -> user : 確認ダイアログ「N件を購入完了にしますか？」
-user --> page : 購入完了
+page -> page : 対象 = 自分のカゴ済みのアイテム\n（操作前の状態として覚えておく）
 page -> repo : completePurchase(対象, 自分)
 repo -> fs : WriteBatch\n各アイテム: status = sufficient,\npurchase = null, 更新者 = 自分
 fs --> repo : コミット成功（全件まとめて）
 repo --> page : 完了
-page -> user : 「N件を購入完了にしました」
+page -> user : 「N件を購入完了にしました [元に戻す]」（5 秒）
 fs -> page : snapshots で一覧を更新（全員の画面から消える）
+note over user, page : 「元に戻す」を押した場合は sequences/undo.md の revertPurchase
 @enduml

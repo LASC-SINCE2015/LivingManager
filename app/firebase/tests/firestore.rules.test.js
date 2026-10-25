@@ -104,11 +104,29 @@ describe('users', () => {
     const data = { displayName: 'あ'.repeat(21), createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     await assertFails(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
   });
+
+  it('自分の並び順は保存できるが、他人の並び順は変えられない', async () => {
+    const data = { displayName: 'アリス', createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
+    await assertSucceeds(setDoc(doc(dbOf(BOB), 'users', BOB.uid), { ...data, displayName: 'ボブ' }));
+    const order = { 'itemOrder.water': ['sample'], updatedAt: serverTimestamp() };
+    await assertSucceeds(updateDoc(doc(dbOf(ALICE), 'users', ALICE.uid), order));
+    await assertFails(updateDoc(doc(dbOf(ALICE), 'users', BOB.uid), order));
+  });
+
+  it('並び順はマップでなければ保存できない', async () => {
+    const data = { displayName: 'アリス', itemOrder: 'x', createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await assertFails(setDoc(doc(dbOf(ALICE), 'users', ALICE.uid), data));
+  });
 });
 
 describe('categories', () => {
   it('「その他」は削除できない', async () => {
     await assertFails(deleteDoc(doc(dbOf(ALICE), 'categories', 'other')));
+  });
+
+  it('カテゴリ削除時に、更新者を変えずにアイテムを「その他」へ移せる', async () => {
+    await assertSucceeds(updateDoc(doc(dbOf(BOB), 'items', 'sample'), { categoryId: 'other' }));
   });
 });
 

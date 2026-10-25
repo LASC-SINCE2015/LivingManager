@@ -8,6 +8,7 @@ LivingManager で「何を確認するか」と「確認した結果」を残す
 - [確認内容（テスト計画）](test_plan.md)
 - 確認結果
   - [2026-10-25 feature_poc（PoC 初版）](results/2026-10-25_feature_poc.md)
+  - [2026-10-25 feature_spec_completion（PoC で後回しにした機能）](results/2026-10-25_feature_spec_completion.md)
 
 ## 確認の種類
 
