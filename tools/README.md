@@ -5,7 +5,7 @@
 | スクリプト | 用途 |
 |---|---|
 | [render_diagrams.ps1](render_diagrams.ps1) | design/ 配下の PlantUML（.puml）から SVG を生成する |
-| [make_app_icon.java](make_app_icon.java) | アプリアイコン（app/web/icons/ と favicon.png）の PNG を生成する |
+| [make_app_icon.java](make_app_icon.java) | アプリアイコン（app/web/icons/）の PNG を生成する |
 
 ## render_diagrams.ps1
 
@@ -40,10 +40,21 @@ $env:PLANTUML_JAR = "<plantuml.jar のパス>"
 java tools/make_app_icon.java app/web
 ```
 
-次のファイルを上書きします。
+次のファイルを作ります（`<版>` はスクリプトの `VERSION`。今は `v2`）。
 
 | ファイル | サイズ | 備考 |
 |---|---|---|
-| `app/web/icons/Icon-192.png` / `Icon-512.png` | 192 / 512 | 角丸の背景 |
-| `app/web/icons/Icon-maskable-192.png` / `Icon-maskable-512.png` | 192 / 512 | 背景を端まで塗り、絵を中央 80% に収める（Android のホーム画面で切り抜かれても欠けない） |
-| `app/web/favicon.png` | 32 | ブラウザのタブ用 |
+| `app/web/icons/icon-<版>-192.png` / `icon-<版>-512.png` | 192 / 512 | 角丸の背景 |
+| `app/web/icons/icon-<版>-maskable-192.png` / `icon-<版>-maskable-512.png` | 192 / 512 | 背景を端まで塗り、絵を中央 80% に収める（Android のホーム画面で切り抜かれても欠けない） |
+| `app/web/icons/icon-<版>-apple-180.png` | 180 | iPhone のホーム画面用。iPhone は透明な部分を黒く塗るので、端まで背景を塗る（角は iPhone が丸める） |
+| `app/web/icons/icon-<版>-favicon-32.png` | 32 | ブラウザのタブ用 |
+
+### アイコンの絵を変えるとき
+
+ホーム画面に追加済みのアプリやブラウザは、同じ URL の画像を古いまま使い続けることがあります。絵を変えたら、ファイル名を変えて新しい画像だとわかるようにします。
+
+1. `make_app_icon.java` の `VERSION` を上げる（例: `v2` → `v3`）。
+2. スクリプトを実行し、古い版の PNG を削除する。
+3. `app/web/manifest.json` の `icons` と、`app/web/index.html` の `apple-touch-icon`・`icon` の参照を新しいファイル名に変える。
+
+Android・PC の Chrome は、アプリを開いたときにアイコンの変更に気づくと、しばらくして自動で入れ替えます。iPhone は自動では変わらないので、ホーム画面から削除して追加し直します。

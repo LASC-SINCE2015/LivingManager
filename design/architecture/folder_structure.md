@@ -35,8 +35,7 @@ app/
 ├─ web/                         … PWA 関連
 │  ├─ index.html
 │  ├─ manifest.json             … アプリ名・アイコン・全画面起動
-│  ├─ favicon.png
-│  └─ icons/                    … ホーム画面用アイコン（tools/make_app_icon.java で生成）
+│  └─ icons/                    … ホーム画面用・iPhone 用・タブ用のアイコン（tools/make_app_icon.java で生成。ファイル名に版を入れる）
 ├─ lib/
 │  ├─ main.dart                 … 起動処理（Firebase 初期化 → ProviderScope）
 │  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移）
