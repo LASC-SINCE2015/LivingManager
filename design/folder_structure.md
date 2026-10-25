@@ -1,0 +1,88 @@
+# フォルダ構成
+
+## 前提
+
+- **画面**: Flutter Web（PWA としてスマホのホーム画面に追加して使う）
+- **状態管理**: Riverpod（Firestore のリアルタイム更新を画面に反映する）
+- **画面遷移**: go_router
+- **インフラ**: Firebase Spark（無料枠）— Authentication / Firestore / Hosting
+  - Spark では Cloud Functions が使えないため、サーバー側のコードは持たない。
+  - アプリはビルドした静的ファイルを Hosting で配信するだけ。データの保護は **Firestore セキュリティルール**が担う。
+
+## 全体像
+
+```
+（リポジトリ直下）
+├─ README.md
+├─ .gitignore
+├─ spec/                        … 仕様書（何を作るか）
+├─ design/                      … 設計書（どう作るか）
+└─ app/                         … Flutter プロジェクト（実行するものはすべてここ）
+```
+
+リポジトリ直下は「文書（spec / design）」と「コード（app）」の 3 つだけに保つ。
+
+## app/ の構成
+
+```
+app/
+├─ pubspec.yaml                 … 依存パッケージ
+├─ analysis_options.yaml        … 静的解析ルール
+├─ firebase.json                … Hosting（build/web を公開）・Firestore・エミュレーター設定
+├─ firebase_env.example.json    … 設定値のキー名の見本（値は空）
+├─ web/                         … PWA 関連
+│  ├─ index.html
+│  ├─ manifest.json             … アプリ名・アイコン・全画面起動
+│  ├─ favicon.png
+│  └─ icons/                    … ホーム画面用アイコン
+├─ lib/
+│  ├─ main.dart                 … 起動処理（Firebase 初期化 → ProviderScope）
+│  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移）
+│  ├─ firebase_options.dart     … 設定値は --dart-define-from-file で受け取る
+│  ├─ core/                     … アプリ全体の土台
+│  │  ├─ router/                …   go_router の定義
+│  │  └─ theme/                 …   テーマ
+│  ├─ features/                 … 機能ごとのフォルダ
+│  │  ├─ auth/                  …   ログイン・家族メンバー判定
+│  │  └─ items/                 …   日用品の一覧・在庫ステータス更新
+│  └─ shared/widgets/           … 機能をまたいで使う共通ウィジェット
+├─ test/                        … Flutter のテスト（lib/ と同じ階層構造で置く）
+└─ firebase/                    … Firestore 関連
+   ├─ firestore.rules           … セキュリティルール（最重要）
+   ├─ firestore.indexes.json    … 複合インデックス
+   ├─ package.json              … ルールテスト専用の Node 環境
+   └─ tests/                    … ルールのテスト（エミュレーターで実行）
+```
+
+### features/ の中の 3 層
+
+各機能フォルダは次の 3 層に分ける。依存の向きは `presentation → domain ← data`。
+
+| 層 | 役割 | 置くもの |
+|---|---|---|
+| `domain/` | アプリの概念そのもの。Flutter や Firebase に依存しない | モデル（`Item`、`StockStatus` など） |
+| `data/` | Firestore との読み書き | Repository |
+| `presentation/` | 画面と状態管理 | 画面・ウィジェット・Riverpod の Provider |
+
+- 新しい機能（例: 買い物リスト）は `features/<機能名>/` を追加する。ブランチ名 `feature_<機能名>` と対応させる。
+- 2 つ以上の機能で使うウィジェットだけを `shared/widgets/` に置く。
+
+## 設定値（秘密情報）の扱い
+
+- Firebase の Web 設定値（apiKey など）はリポジトリに含めない。`app/firebase_env.example.json` と同じ形式の JSON をリポジトリ外に用意し、ビルド時にそのパスを渡す。
+
+  ```bash
+  flutter run -d chrome --dart-define-from-file=<設定ファイルのパス>
+  ```
+
+- `lib/firebase_options.dart` は `String.fromEnvironment` で値を読むだけなので、リポジトリに含めてよい。
+- 補足: Web の設定値はビルド後の JS に含まれ、ブラウザから見える。厳密な秘密ではないが、方針としてリポジトリには置かない。実際の保護は Firestore ルールと Authentication で行う。
+
+## Firestore ルールのテスト
+
+公式のテストツール（`@firebase/rules-unit-testing`）は Node 用のため、`app/firebase/` だけ `package.json` を持つ。エミュレーターの実行には Java が必要。
+
+## 将来の拡張
+
+- Blaze プランに上げて Cloud Functions を使う場合は `app/functions/` を追加する。
+- ネイティブアプリ化する場合は `flutter create --platforms android,ios .` で `android/` `ios/` を追加する。
