@@ -1,0 +1,87 @@
+@startuml providers
+!pragma layout smetana
+' Riverpod の Provider の依存関係（矢印は「監視・参照している先」）
+skinparam defaultFontName "Meiryo"
+left to right direction
+
+rectangle "core" {
+  rectangle "firebaseAuthProvider" as fa
+  rectangle "firestoreProvider" as fs
+  rectangle "appRouterProvider" as router
+}
+
+rectangle "auth" {
+  rectangle "authRepositoryProvider" as authRepo
+  rectangle "memberRepositoryProvider" as memberRepo
+  rectangle "authStateProvider\nStream: User?" as authState
+  rectangle "currentUserProvider" as currentUser
+  rectangle "accessCheckProvider\nFuture: AccessStatus" as accessCheck
+  rectangle "accessStatusProvider" as accessStatus
+  rectangle "deniedEmailProvider" as deniedEmail
+  rectangle "currentMemberProvider\nStream: Member?" as currentMember
+  rectangle "actorProvider" as actor
+  rectangle "isDeveloperProvider\nFuture: bool" as isDev
+}
+
+rectangle "items" {
+  rectangle "itemsRepositoryProvider" as itemsRepo
+  rectangle "categoriesProvider\nStream: List of Category" as categories
+  rectangle "itemsProvider\nStream: List of Item" as itemList
+  rectangle "shoppingCountProvider" as count
+  rectangle "myItemOrderProvider\nStream: 自分の並び順" as myOrder
+  rectangle "categoriesRepositoryProvider" as catRepo
+  rectangle "isOfflineProvider" as offline
+}
+
+rectangle "settings" {
+  rectangle "appVersionProvider\nFuture: String" as version
+}
+
+rectangle "feedback" {
+  rectangle "feedbackRepositoryProvider" as fbRepo
+  rectangle "myFeedbackProvider\nStream: 自分の意見" as myFb
+  rectangle "allFeedbackProvider\nStream: すべての意見" as allFb
+}
+
+authRepo --> fa
+authRepo --> fs
+memberRepo --> fs
+itemsRepo --> fs
+
+authState --> authRepo
+currentUser --> authState
+accessCheck --> authState
+accessCheck --> authRepo : 利用許可の確認
+accessCheck --> memberRepo : メンバー登録
+accessCheck --> itemsRepo : 初期カテゴリ作成
+accessStatus --> accessCheck
+currentMember --> currentUser
+currentMember --> memberRepo
+actor --> currentUser
+actor --> currentMember
+
+categories --> currentUser : uid
+categories --> itemsRepo
+itemList --> currentUser : uid
+itemList --> itemsRepo
+count --> itemList
+myOrder --> currentUser : uid
+myOrder --> memberRepo
+offline --> currentUser : uid
+isDev --> currentUser
+isDev --> authRepo : 開発者かの判定
+myFb --> currentUser : uid
+myFb --> fbRepo
+allFb --> currentUser : uid
+allFb --> fbRepo
+
+router --> accessStatus : listen
+router --> deniedEmail : 拒否時に設定
+note bottom of offline
+  categoriesRepositoryProvider・isOfflineProvider・
+  feedbackRepositoryProvider も
+  firestoreProvider を使う（線は省略）。
+  isOfflineProvider は items の
+  キャッシュ状態を購読する。
+end note
+@enduml

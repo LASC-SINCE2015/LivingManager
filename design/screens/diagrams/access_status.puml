@@ -1,0 +1,23 @@
+@startuml access_status
+!pragma layout smetana
+' AccessStatus（利用許可の判定結果）の移り変わり
+skinparam defaultFontName "Meiryo"
+
+state checking : ログイン状態の確認\n利用許可の確認\n利用開始の準備
+state signedOut : 未ログイン
+state denied : 許可されていない
+state allowed : 利用できる
+state error : 判定できなかった
+
+[*] --> checking : 起動
+checking --> signedOut : 未ログイン
+checking --> denied : 許可なし
+checking --> allowed : 許可あり・準備完了
+checking --> error : 通信エラーなど
+
+signedOut --> checking : ログイン
+allowed --> checking : ログアウト
+denied --> checking : 自動サインアウト
+error --> checking : 再試行
+error --> checking : ログアウト
+@enduml

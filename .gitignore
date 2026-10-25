@@ -1,0 +1,28 @@
+# 秘密情報（リポジトリに含めない）
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.runtimeconfig.json
+firebase_env.json
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Node
+node_modules/
+dist/
+npm-debug.log*
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Firebase のプロジェクト ID（デプロイ時に --project で指定する）
+.firebaserc

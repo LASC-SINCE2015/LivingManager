@@ -1,0 +1,31 @@
+@startuml feedback_submit
+!pragma layout smetana
+' 改善意見の送信と、送った意見の一覧への反映の流れ
+skinparam defaultFontName "Meiryo"
+autonumber
+
+actor "家族" as user
+participant "SendFeedbackPage" as page
+participant "actorProvider /\nappVersionProvider" as info
+participant "FeedbackRepository" as repo
+database "Firestore" as fs
+participant "myFeedbackProvider" as mine
+
+user -> page : 種類を選び、本文を入力
+user -> page : 「送信」
+page -> page : validateFeedbackBody（1〜1000 文字）
+page -> info : 送った人（uid・表示名）・バージョン
+page -> repo : submit(種類, 本文, バージョン, 自分)
+repo -> fs : add（status: open, devMemo: 空, createdAt）
+alt 成功
+  repo --> page : 完了
+  page -> page : 本文を空にし、種類を「要望」に戻す
+  page -> user : 「送信しました。ありがとうございます」
+else 失敗
+  repo --> page : エラー
+  page -> user : 「送信できませんでした。通信状態を確認してください」（入力は残す）
+end
+fs --> mine : snapshots（byUid が自分の意見）
+mine --> page : 新しい順の一覧
+page -> user : 「送った意見」に表示（状態: 未対応）
+@enduml

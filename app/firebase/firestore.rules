@@ -1,0 +1,120 @@
+rules_version = '2';
+
+// Firestore セキュリティルール
+// 利用を許可された家族のアカウントだけが読み書きできる。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // 許可リストに自分のメールアドレスがあるか
+    function isMember() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
+    }
+
+    // 開発者か（改善意見の一覧・管理ができる）
+    function isDeveloper() {
+      return isMember()
+        && get(/databases/$(database)/documents/allowedUsers/$(myEmail())).data.get('admin', false) == true;
+    }
+
+    function isText(value, minLen, maxLen) {
+      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    }
+
+    // 許可リスト: 自分のドキュメントの有無だけ確認できる。変更はコンソールからのみ
+    match /allowedUsers/{email} {
+      allow get: if signedIn() && email == myEmail();
+    }
+
+    // 家族メンバー: 自分のドキュメントだけ作成・更新できる
+    // itemOrder は自分の並び順（カテゴリ ID → アイテム ID の配列）
+    match /users/{uid} {
+      allow read: if isMember();
+      allow create, update: if isMember()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['displayName', 'itemOrder', 'createdAt', 'updatedAt'])
+        && isText(request.resource.data.displayName, 1, 20)
+        && request.resource.data.get('itemOrder', {}) is map;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isMember();
+      allow create, update: if isMember()
+        && request.resource.data.keys().hasOnly(['name', 'order', 'createdAt', 'updatedAt'])
+        && isText(request.resource.data.name, 1, 20)
+        && request.resource.data.order is number;
+      // 「その他」は削除できない（削除したカテゴリのアイテムの移動先のため）
+      allow delete: if isMember() && categoryId != 'other';
+    }
+
+    match /items/{itemId} {
+      function validItem(data) {
+        return data.keys().hasOnly([
+            'name', 'categoryId', 'status', 'memo', 'purchase',
+            'createdAt', 'updatedAt', 'updatedByUid', 'updatedByName'])
+          && isText(data.name, 1, 50)
+          && data.categoryId is string
+          && data.status in ['sufficient', 'low', 'empty']
+          && isText(data.memo, 0, 200)
+          && isText(data.updatedByName, 0, 20)
+          // 「十分」のときは担当・カゴ済みを持たない
+          && (data.status != 'sufficient' || data.get('purchase', null) == null);
+      }
+
+      // 担当者として書けるのは自分だけ（解除の null は誰でも可）
+      function validPurchase(p) {
+        return p == null
+          || (p.keys().hasOnly(['state', 'byUid', 'byName', 'at'])
+            && p.state in ['planned', 'in_cart']
+            && p.byUid == request.auth.uid);
+      }
+
+      allow read: if isMember();
+      allow create: if isMember()
+        && validItem(request.resource.data)
+        && request.resource.data.updatedByUid == request.auth.uid
+        && validPurchase(request.resource.data.get('purchase', null));
+      allow update: if isMember()
+        && validItem(request.resource.data)
+        // 更新者は自分にする（担当・カゴ済みだけを変えるときは前の更新者のまま）
+        && (request.resource.data.updatedByUid == request.auth.uid
+          || request.resource.data.updatedByUid == resource.data.updatedByUid)
+        // 担当は自分にするか、解除するか、変えない
+        && (validPurchase(request.resource.data.get('purchase', null))
+          || request.resource.data.get('purchase', null) == resource.data.get('purchase', null));
+      allow delete: if isMember();
+    }
+
+    // 改善意見: 送った本人と開発者だけが読める。状態・メモの変更と削除は開発者のみ
+    match /feedback/{feedbackId} {
+      allow read: if isDeveloper()
+        || (isMember() && resource.data.byUid == request.auth.uid);
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([
+            'type', 'body', 'appVersion', 'byUid', 'byName', 'createdAt',
+            'status', 'devMemo', 'statusUpdatedAt'])
+        && request.resource.data.type in ['bug', 'request', 'other']
+        && isText(request.resource.data.body, 1, 1000)
+        && isText(request.resource.data.appVersion, 0, 40)
+        && request.resource.data.byUid == request.auth.uid
+        && isText(request.resource.data.byName, 0, 20)
+        && request.resource.data.status == 'open'
+        && request.resource.data.devMemo == '';
+      allow update: if isDeveloper()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'devMemo', 'statusUpdatedAt'])
+        && request.resource.data.status in ['open', 'in_progress', 'done', 'wont_fix']
+        && isText(request.resource.data.devMemo, 0, 500);
+      allow delete: if isDeveloper();
+    }
+  }
+}

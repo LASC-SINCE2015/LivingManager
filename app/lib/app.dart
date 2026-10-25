@@ -1,0 +1,19 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+
+/// アプリのルートウィジェット（テーマと画面遷移を束ねる）
+class LivingManagerApp extends ConsumerWidget {
+  const LivingManagerApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp.router(
+      title: '家庭内在庫管理',
+      theme: AppTheme.light,
+      routerConfig: ref.watch(appRouterProvider),
+    );
+  }
+}
