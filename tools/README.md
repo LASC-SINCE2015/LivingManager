@@ -5,7 +5,7 @@
 | スクリプト | 用途 |
 |---|---|
 | [render_diagrams.ps1](render_diagrams.ps1) | design/ 配下の PlantUML（.puml）から SVG を生成する |
-| [make_app_icon.java](make_app_icon.java) | アプリアイコン（app/web/icons/）の PNG を生成する |
+| [make_app_icon.java](make_app_icon.java) | アプリアイコン（app/web/icons/）と、ログイン画面のアイコン（app/assets/images/app_icon.png）の PNG を生成する |
 
 ## render_diagrams.ps1
 
@@ -48,6 +48,7 @@ java tools/make_app_icon.java app/web
 | `app/web/icons/icon-<版>-maskable-192.png` / `icon-<版>-maskable-512.png` | 192 / 512 | 背景を端まで塗り、絵を中央 80% に収める（Android のホーム画面で切り抜かれても欠けない） |
 | `app/web/icons/icon-<版>-apple-180.png` | 180 | iPhone のホーム画面用。iPhone は透明な部分を黒く塗るので、端まで背景を塗る（角は iPhone が丸める） |
 | `app/web/icons/icon-<版>-favicon-32.png` | 32 | ブラウザのタブ用 |
+| `app/assets/images/app_icon.png` | 384 | ログイン画面に表示する画像（角丸の背景）。アプリに同梱するので、ファイル名に版は入れない |
 
 ### アイコンの絵を変えるとき
 

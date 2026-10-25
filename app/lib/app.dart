@@ -11,7 +11,7 @@ class LivingManagerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: '家庭内在庫管理',
+      title: 'おうちストック',
       theme: AppTheme.light,
       routerConfig: ref.watch(appRouterProvider),
     );
