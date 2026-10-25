@@ -43,7 +43,22 @@ entity "purchase（items 内のマップ）" as purchase {
   at : timestamp
 }
 
+entity "feedback" as feedback {
+  * id : ドキュメント ID
+  --
+  type : bug / request / other
+  body : string
+  appVersion : string
+  byUid : string
+  byName : string
+  createdAt : timestamp
+  status : open / in_progress / done / wont_fix
+  devMemo : string
+  statusUpdatedAt : timestamp
+}
+
 categories ||--o{ items : categoryId
+users ||--o{ feedback : byUid
 users ||--o{ items : updatedByUid
 items ||--o| purchase : purchase
 users ||--o{ purchase : byUid

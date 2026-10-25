@@ -13,6 +13,7 @@
 | `users` | Authentication の uid | `Member`（`uid`, `displayName`）。`itemOrder` は `Map<String, List<String>>` として別に読む（`watchItemOrder`） | `MemberRepository` |
 | `categories` | 自動採番（初期カテゴリは `water` / `other`） | `Category`（`id`, `name`, `order`） | 読み取り・追加: `ItemsRepository`、名前変更・並べ替え・削除: `CategoriesRepository` |
 | `items` | 自動採番 | `Item`、`purchase` は `Purchase` | `ItemsRepository` |
+| `feedback` | 自動採番 | `UserFeedback`（`type` は `FeedbackType`、`status` は `FeedbackStatus`） | `FeedbackRepository` |
 
 - `items` の `createdAt` は `Item.createdAt` として読む（並び順が未設定のアイテムを追加した順に並べるため）。`users` / `categories` の `createdAt`・`updatedAt` は domain のクラスには持たない（画面で使わないため）。
 - アクセス制限の詳細はリポジトリでは管理しない。
@@ -29,6 +30,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | `status` | 未知の値は `sufficient` として扱う（`StockStatus.fromValue`） |
 | `purchase` | マップでなければ null（未担当） |
 | `purchase.state` | 未知の値は `planned` として扱う（`PurchaseState.fromValue`） |
+| `feedback.type` / `feedback.status` | 未知の値はそれぞれ `other` / `open` として扱う（`FeedbackType.fromValue` / `FeedbackStatus.fromValue`） |
 | `categoryId` | なければ `other` |
 | 文字列（`name`, `memo`, `updatedByName` など） | なければ空文字 |
 | 日時（`createdAt`, `updatedAt`, `purchase.at`） | `Timestamp` でなければ null。保存直後でサーバー時刻が未確定のときも null になり、画面には「たった今」と表示する |
@@ -64,6 +66,10 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | 担当をやめる | `release` | **トランザクション** | 自分の担当のときだけ `purchase: null` |
 | カゴ済みのチェックを外す | `uncheck` | **トランザクション** | 自分のカゴ済みのときだけ `purchase.state: planned` |
 | 購入完了 | `completePurchase` | **バッチ** | 対象アイテムすべてに `status: sufficient`, `purchase: null`, 更新者 |
+| 改善意見の送信 | `FeedbackRepository.submit` | add | `type`, `body`, `appVersion`（取得できなければ「不明」）, `byUid`, `byName`（その時点の表示名）, `createdAt`, `status: open`, `devMemo: ''` |
+| 改善意見の状態の変更（開発者） | `FeedbackRepository.updateStatus` | update | `status`, `statusUpdatedAt` |
+| 改善意見のメモの変更（開発者） | `FeedbackRepository.updateMemo` | update | `devMemo`, `statusUpdatedAt` |
+| 改善意見の削除（開発者） | `FeedbackRepository.delete` | delete | ― |
 | ステータス変更を元に戻す | `revertStatus` | **トランザクション** | 操作前のステータス・更新者（自分）・担当（下記） |
 | 購入完了を元に戻す | `revertPurchase` | **トランザクション** | 戻せるアイテムだけ、操作前のステータス・カゴ済み・更新者（自分） |
 
@@ -124,3 +130,13 @@ Firestore のデータから domain のクラスに変換するときの決ま�
   3. 配列にあってもアイテムがない ID は無視する。
 - 保存: 並べ替えモードで指を離したとき、`moveItem` で作った「そのカテゴリに今あるアイテムの ID の並び」を `saveCategoryOrder` で丸ごと書く。削除済み・移動済みのアイテムは自然に取り除かれる。
 - 在庫一覧（カテゴリのセクション内）と買い物リスト（カテゴリ順のあと）の両方で使う。カテゴリが見つからないアイテムは「その他」として扱い、「その他」の配列で並べる。
+
+## 7. 改善意見（`feedback`）
+
+- 読み取りは 2 通り。
+  - 自分が送った意見: `watchMine(uid)` は `byUid` が自分のものだけを購読する（`myFeedbackProvider`）。
+  - すべての意見: `watchAll()` は全件を購読する（`allFeedbackProvider`）。開発者のときだけ一覧ページから購読し、開発者でなければ購読しない。
+- どちらも並べ替え（`createdAt` の新しい順。保存中で日時が未確定のものは先頭）はアプリ側で行い（`sortNewestFirst`）、複合インデックスを不要にしている（[ADR 0003](../decisions/0003_sort_on_client.md)）。
+- 状態・種類での絞り込みと状態ごとの件数もアプリ側で行う（`filterFeedback` / `countByStatus`）。
+- 送った後は、本文・種類などを変更しない。開発者が変えるのは `status` と `devMemo` だけで、そのたびに `statusUpdatedAt` を更新する。
+- 開発者かどうかの判定は `isDeveloperProvider` で行う（判定方法はリポジトリでは管理しない）。

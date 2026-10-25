@@ -21,3 +21,4 @@
 | [0006](0006_item_order_per_user.md) | アイテムの並び順はユーザーごとに持つ | 採用 |
 | [0007](0007_undo_sets_updater_to_self.md) | 「元に戻す」では更新者を自分にし、ほかの人の担当は戻さない | 採用 |
 | [0008](0008_offline_from_cache_state.md) | オフライン判定は Firestore のキャッシュ状態を使う | 採用 |
+| [0009](0009_feedback_in_app_for_developer.md) | 改善意見の一覧はアプリ内の別ページで、開発者だけが見る | 採用 |

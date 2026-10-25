@@ -13,16 +13,19 @@ package "app/lib" {
     [items\n在庫一覧・編集シート] as itemsP
     [shopping_list\n買い物リスト] as shopP
     [settings\n設定] as setP
+    [feedback\n改善意見の送信・一覧（開発者用）] as fbP
   }
 
   package "data（Firestore との読み書き）" {
     [auth\nAuthRepository / MemberRepository] as authD
     [items\nItemsRepository] as itemsD
+    [feedback\nFeedbackRepository] as fbD
   }
 
   package "domain（モデル）" {
     [auth\nMember / AccessStatus] as authM
     [items\nItem / Category / StockStatus] as itemsM
+    [feedback\nUserFeedback] as fbM
   }
 
   [core/firebase\n(Provider)] as fbp
@@ -38,18 +41,22 @@ router --> authP
 router --> itemsP
 router --> shopP
 router --> setP
+router --> fbP
 
 authP --> authD
 authP --> itemsD : 初期カテゴリ作成
 itemsP --> itemsD
 shopP --> itemsD
 setP --> authD
+fbP --> fbD
 
 authD --> authM
 itemsD --> itemsM
+fbD --> fbM
 
 authD --> fbp
 itemsD --> fbp
+fbD --> fbp
 fbp --> auth
 fbp --> fs
 

@@ -7,6 +7,8 @@ import '../../features/auth/presentation/auth_providers.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/no_access_page.dart';
 import '../../features/auth/presentation/splash_page.dart';
+import '../../features/feedback/presentation/feedback_list_page.dart';
+import '../../features/feedback/presentation/send_feedback_page.dart';
 import '../../features/items/presentation/stock_page.dart';
 import '../../features/settings/presentation/categories_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
@@ -37,6 +39,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: noAccessPath,
         builder: (context, state) => const NoAccessPage(),
       ),
+      // 改善意見の一覧（開発者用）は下部のタブを出さない独立したページ
+      GoRoute(
+        path: feedbackListPath,
+        builder: (context, state) => const FeedbackListPage(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             HomeShell(navigationShell: navigationShell),
@@ -66,6 +73,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'categories',
                     builder: (context, state) => const CategoriesPage(),
+                  ),
+                  GoRoute(
+                    path: 'feedback',
+                    builder: (context, state) => const SendFeedbackPage(),
                   ),
                 ],
               ),

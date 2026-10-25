@@ -62,6 +62,7 @@ class SettingsPage extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final actor = ref.watch(actorProvider);
     final version = ref.watch(appVersionProvider).value;
+    final isDeveloper = ref.watch(isDeveloperProvider).value ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
@@ -93,6 +94,20 @@ class SettingsPage extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/settings/categories'),
           ),
+          ListTile(
+            leading: const Icon(Icons.feedback_outlined),
+            title: const Text('改善意見を送る'),
+            subtitle: const Text('不具合・要望などを開発者に送る'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/feedback'),
+          ),
+          if (isDeveloper)
+            ListTile(
+              leading: const Icon(Icons.inbox_outlined),
+              title: const Text('改善意見の一覧（開発者用）'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/feedback'),
+            ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

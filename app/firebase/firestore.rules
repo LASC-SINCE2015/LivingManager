@@ -20,6 +20,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
     }
 
+    // 開発者か（改善意見の一覧・管理ができる）
+    function isDeveloper() {
+      return isMember()
+        && get(/databases/$(database)/documents/allowedUsers/$(myEmail())).data.get('admin', false) == true;
+    }
+
     function isText(value, minLen, maxLen) {
       return value is string && value.size() >= minLen && value.size() <= maxLen;
     }
@@ -86,6 +92,29 @@ service cloud.firestore {
         && (validPurchase(request.resource.data.get('purchase', null))
           || request.resource.data.get('purchase', null) == resource.data.get('purchase', null));
       allow delete: if isMember();
+    }
+
+    // 改善意見: 送った本人と開発者だけが読める。状態・メモの変更と削除は開発者のみ
+    match /feedback/{feedbackId} {
+      allow read: if isDeveloper()
+        || (isMember() && resource.data.byUid == request.auth.uid);
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([
+            'type', 'body', 'appVersion', 'byUid', 'byName', 'createdAt',
+            'status', 'devMemo', 'statusUpdatedAt'])
+        && request.resource.data.type in ['bug', 'request', 'other']
+        && isText(request.resource.data.body, 1, 1000)
+        && isText(request.resource.data.appVersion, 0, 40)
+        && request.resource.data.byUid == request.auth.uid
+        && isText(request.resource.data.byName, 0, 20)
+        && request.resource.data.status == 'open'
+        && request.resource.data.devMemo == '';
+      allow update: if isDeveloper()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'devMemo', 'statusUpdatedAt'])
+        && request.resource.data.status in ['open', 'in_progress', 'done', 'wont_fix']
+        && isText(request.resource.data.devMemo, 0, 500);
+      allow delete: if isDeveloper();
     }
   }
 }
