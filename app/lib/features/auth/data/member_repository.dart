@@ -47,6 +47,24 @@ class MemberRepository {
     'updatedAt': FieldValue.serverTimestamp(),
   });
 
+  /// 自分が閉じている（中身を隠している）カテゴリの ID
+  Stream<Set<String>> watchHiddenCategories(String uid) =>
+      _doc(uid).snapshots().map((snap) {
+        final value = snap.data()?['hiddenCategories'];
+        if (value is! List) return const {};
+        return {
+          for (final id in value)
+            if (id is String) id,
+        };
+      });
+
+  /// 閉じているカテゴリの ID を丸ごと保存する
+  Future<void> saveHiddenCategories(String uid, Set<String> categoryIds) =>
+      _doc(uid).update({
+        'hiddenCategories': categoryIds.toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
   /// 初回ログイン時に、自分のドキュメントがなければ作る
   Future<void> ensureExists(User user) async {
     final snap = await _doc(user.uid).get();

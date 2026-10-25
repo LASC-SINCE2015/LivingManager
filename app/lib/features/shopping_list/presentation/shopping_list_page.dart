@@ -177,7 +177,7 @@ class _ShoppingList extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
               child: Row(
                 children: [
-                  Icon(Icons.circle, size: 12, color: status.color),
+                  Icon(status.icon, size: 16, color: status.color),
                   const SizedBox(width: 6),
                   Text(
                     status.label,

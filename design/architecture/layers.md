@@ -17,7 +17,7 @@
 |---|---|---|
 | `auth/presentation/auth_providers.dart` | `items/data/items_repository.dart` | 利用開始の準備で、初期カテゴリを作るため |
 | `shopping_list/` | `items/` の data・domain・presentation | 買い物リストは items のデータを別の切り口で表示する画面のため、独自の data・domain を持たない |
-| `items/presentation/items_providers.dart` | `auth/data/member_repository.dart` | 自分の並び順（`users.itemOrder`）を読むため |
+| `items/presentation/items_providers.dart` | `auth/data/member_repository.dart` | 自分の並び順（`users.itemOrder`）・閉じているカテゴリ（`users.hiddenCategories`）を読むため |
 | `settings/` | `auth/` の data・presentation | 表示名の変更・ログアウト |
 | `settings/` | `items/` の data・domain・presentation | カテゴリ管理画面（カテゴリの読み書き・カテゴリ名の入力チェック） |
 | `settings/` | `feedback/` の presentation | 「改善意見を送る」「改善意見の一覧（開発者用）」への導線 |
@@ -47,6 +47,7 @@
 | `itemsProvider` | StreamProvider | アイテム一覧（並び順は画面側で決める） |
 | `shoppingCountProvider` | Provider | 買い物リストに出ている件数（タブのバッジ） |
 | `myItemOrderProvider` | StreamProvider | 自分の並び順（カテゴリ ID → アイテム ID の配列）。`users/{自分の uid}.itemOrder` を購読する |
+| `myHiddenCategoriesProvider` | StreamProvider | 在庫一覧で自分が閉じているカテゴリ ID。`users/{自分の uid}.hiddenCategories` を購読する |
 | `isOfflineProvider` | NotifierProvider | オフライン表示を出すか。items を 1 件だけ購読し、データがキャッシュから来ている状態が 3 秒続いたら true（[ADR 0008](../decisions/0008_offline_from_cache_state.md)） |
 | `appVersionProvider` | FutureProvider | アプリのバージョン（`package_info_plus` の `version+buildNumber`）。設定画面に表示する |
 | `isDeveloperProvider` | FutureProvider | 開発者かどうか。ログイン中のユーザーが変わると判定し直す。判定できないときは false |

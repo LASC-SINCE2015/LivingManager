@@ -4,7 +4,10 @@
 
 ## 1. 共通の方針
 
-- Material 3（`ColorScheme.fromSeed(seedColor: Colors.teal)`）。ライトテーマのみ。
+- Material 3。ライトテーマのみ。テーマは `core/theme/app_theme.dart` の `AppTheme.light` にまとめる。
+  - 基調色はセージグリーン（`#4F8A78`）、背景は温かみのあるオフホワイト（`#F6F4EF`）。
+  - カード・入力欄は白地に薄い枠線、影なし、角丸 14。チップは丸型でチェックマークなし。SnackBar は浮かせて表示する。
+  - 1 画面の情報量を増やすため `VisualDensity.compact` にする。
 - Firestore のデータは `categoriesProvider` / `itemsProvider` を `ref.watch` して表示する。どちらかがエラーなら「読み込めませんでした。通信状態を確認してください」、読み込み中はインジケーターを表示する。
 - 保存処理は `runWithErrorMessage` で包み、失敗したら SnackBar「保存できませんでした。通信状態を確認してください」を出す。
 - 更新日時は `formatRelativeTime`（`core/utils/relative_time.dart`）で「たった今」「N分前」などにする。表示はデータが変わって描き直されたときに更新され、時間の経過だけでは更新しない。
@@ -24,8 +27,8 @@ items 機能の中で共通に使うもの（`features/items/presentation/`）:
 
 | ファイル | 内容 |
 |---|---|
-| `status_selector.dart` | `StatusSelector`: 3 段階の `SegmentedButton`。横幅いっぱい、選択中の背景をステータスの色（25% の濃さ）にする |
-| `status_colors.dart` | ステータスの色（十分=緑・残りわずか=黄・切れてる=赤）と、薄い背景の上の文字色 |
+| `status_selector.dart` | `StatusSelector`: 3 段階の `SegmentedButton`（アイコンと名前）。横幅いっぱい、選択中の背景をステータスの色（25% の濃さ）にする。編集モーダルで使う<br>`StatusIconSelector`: アイコンだけの小さな 3 つのボタン。選択中はステータスの色＋薄い丸の背景、それ以外は `outlineVariant` の色。`Tooltip` で名前を出す。アイテムカードで使う<br>`StatusLegend`: ステータスのアイコンと名前の凡例。`counts` を渡すと件数も出す |
+| `status_colors.dart` | ステータスの色（十分=緑・残りわずか=黄・切れてる=赤）、薄い背景の上の文字色、アイコン（十分=`check_circle_rounded`・残りわずか=`hourglass_bottom_rounded`・切れてる=`cancel_rounded`） |
 | `item_actions.dart` | `changeItemStatus`（「十分」にするとき、ほかの人の担当があれば確認。保存後に「元に戻す」付きのメッセージを出す）、`deleteItemWithConfirm`、`purchaseLabel`（「🛒 〇〇が買う予定」などの文） |
 | `item_edit_sheet.dart` | `showItemEditSheet` / `ItemEditSheet`: 追加・編集のボトムシート |
 
@@ -33,28 +36,30 @@ items 機能の中で共通に使うもの（`features/items/presentation/`）:
 
 ### 在庫一覧（`StockPage`）
 
-`StockPage` は `ConsumerStatefulWidget`。検索文字・選択中のカテゴリ・並べ替えモードかどうか・保存中の並び（`_pendingOrder`）を状態として持つ。
+`StockPage` は `ConsumerStatefulWidget`。検索文字・選択中のカテゴリ・並べ替えモードかどうか・保存中の並び（`_pendingOrder`）・保存中の閉じているカテゴリ（`_pendingHidden`）を状態として持つ。
 
 通常の表示:
 
 ```
 Scaffold
-├─ AppBar「在庫一覧」＋「並べ替え」ボタン（Icons.swap_vert）
+├─ AppBar「在庫一覧」＋ _ToggleAllButton（すべて開く / すべて閉じる）＋「並べ替え」ボタン（Icons.swap_vert）
 ├─ body: Column
 │  ├─ _SearchArea
 │  │  ├─ 検索欄（TextField。入力中は ✕ で消せる）
-│  │  └─ カテゴリフィルター（横スクロールの ChoiceChip「すべて」＋各カテゴリ）
+│  │  ├─ カテゴリフィルター（横スクロールの ChoiceChip「すべて」＋各カテゴリ）
+│  │  └─ StatusLegend（凡例＋全アイテムのステータス別件数）
 │  └─ _StockList（ListView）
 │     └─ カテゴリごとに（order 順）
-│        ├─ 見出し「カテゴリ名（件数）」
-│        └─ ItemCard × アイテム数（自分の並び順）
+│        ├─ _SectionHeader（▼・カテゴリ名・件数バッジ。閉じているときは切れてる・残りわずかの件数）
+│        └─ ItemCard × アイテム数（自分の並び順。閉じているカテゴリは出さない）
 └─ FloatingActionButton（＋）→ showItemEditSheet（選択中のカテゴリを初期値に）
 ```
 
 - 検索: アイテム名とメモを `normalizeForCompare` して部分一致。空白だけの入力は検索なしとして扱う。カテゴリフィルターと同時に使うと、両方に合うものだけを出す。
 - 検索・絞り込み中は 0 件のカテゴリを出さず、結果が 0 件なら「該当するアイテムがありません」。検索・絞り込みをしていないときは、0 件のカテゴリも見出しを出す。アイテムが 1 件もないときは案内文だけを表示する。
 - アイテムはカテゴリの中で自分の並び順に並べる。ステータスが変わっても位置は動かない。
-- `ItemCard`: 名前、︙メニュー（編集・削除）、メモ（1 行で省略）、`StatusSelector`、「更新者・日時」、担当・カゴ済みがあればその文。
+- `ItemCard`: 横 1 行のカード。左端にステータスの色の帯、名前（1 行で省略）、メモ（1 行で省略）、「更新者・日時」、担当・カゴ済みがあればその文。右側に `StatusIconSelector` と︙メニュー（編集・削除）。
+- カテゴリの開閉: `_SectionHeader` を押すと `_saveHidden` で `hiddenCategories` を保存する（保存が終わるまで `_pendingHidden` を先に使い、失敗したら保存済みの状態に戻してエラーを出す）。検索・絞り込み中は閉じているカテゴリも開いて表示し、見出しを押せないようにする。
 - ステータスを変えると、`showUndoMessage`「『〇〇』を「切れてる」にしました [元に戻す]」を出す。元に戻す処理は [sequences/undo.md](../sequences/undo.md)。
 
 並べ替えモード（「並べ替え」ボタンで切り替え）:

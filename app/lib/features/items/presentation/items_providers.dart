@@ -35,3 +35,10 @@ final myItemOrderProvider = StreamProvider<Map<String, List<String>>>((ref) {
   if (uid == null) return Stream.value(const {});
   return ref.watch(memberRepositoryProvider).watchItemOrder(uid);
 });
+
+/// 自分が閉じているカテゴリの ID
+final myHiddenCategoriesProvider = StreamProvider<Set<String>>((ref) {
+  final uid = ref.watch(_uidProvider);
+  if (uid == null) return Stream.value(const {});
+  return ref.watch(memberRepositoryProvider).watchHiddenCategories(uid);
+});
