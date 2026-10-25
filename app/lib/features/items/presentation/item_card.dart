@@ -6,11 +6,12 @@ import '../../auth/presentation/auth_providers.dart';
 import '../domain/item.dart';
 import 'item_actions.dart';
 import 'item_edit_sheet.dart';
+import 'status_colors.dart';
 import 'status_selector.dart';
 
 enum _ItemMenu { edit, delete }
 
-/// 在庫一覧のアイテム 1 件分のカード
+/// 在庫一覧のアイテム 1 件分のカード（1 行に詰めて表示する）
 class ItemCard extends ConsumerWidget {
   const ItemCard({super.key, required this.item});
 
@@ -26,61 +27,76 @@ class ItemCard extends ConsumerWidget {
     final purchase = item.purchase;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 4, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(item.name, style: theme.textTheme.titleMedium),
-                ),
-                PopupMenuButton<_ItemMenu>(
-                  tooltip: 'メニュー',
-                  onSelected: (menu) => switch (menu) {
-                    _ItemMenu.edit => showItemEditSheet(context, item: item),
-                    _ItemMenu.delete => deleteItemWithConfirm(
-                      context,
-                      ref,
-                      item,
-                    ),
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: _ItemMenu.edit, child: Text('編集')),
-                    PopupMenuItem(value: _ItemMenu.delete, child: Text('削除')),
-                  ],
-                ),
-              ],
+            // 左端の色帯で、ステータスをひと目でわかるようにする
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 4,
+              color: item.status.color,
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (item.memo.isNotEmpty)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 0, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      item.memo,
+                      item.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: mutedStyle,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  const SizedBox(height: 8),
-                  StatusSelector(
-                    selected: item.status,
-                    onChanged: (next) =>
-                        changeItemStatus(context, ref, item, next),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${item.updatedByName}・${formatRelativeTime(item.updatedAt)}',
-                    style: mutedStyle,
-                  ),
-                  if (purchase != null)
+                    if (item.memo.isNotEmpty)
+                      Text(
+                        item.memo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: mutedStyle,
+                      ),
                     Text(
-                      purchaseLabel(purchase, myUid: myUid),
-                      style: theme.textTheme.bodySmall,
+                      '${item.updatedByName}・${formatRelativeTime(item.updatedAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: mutedStyle?.copyWith(fontSize: 11),
                     ),
+                    if (purchase != null)
+                      Text(
+                        purchaseLabel(purchase, myUid: myUid),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Center(
+              child: StatusIconSelector(
+                selected: item.status,
+                onChanged: (next) => changeItemStatus(context, ref, item, next),
+              ),
+            ),
+            Center(
+              child: PopupMenuButton<_ItemMenu>(
+                tooltip: 'メニュー',
+                icon: const Icon(Icons.more_vert, size: 20),
+                onSelected: (menu) => switch (menu) {
+                  _ItemMenu.edit => showItemEditSheet(context, item: item),
+                  _ItemMenu.delete => deleteItemWithConfirm(context, ref, item),
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: _ItemMenu.edit, child: Text('編集')),
+                  PopupMenuItem(value: _ItemMenu.delete, child: Text('削除')),
                 ],
               ),
             ),
