@@ -4,9 +4,9 @@
 
 | 層 | 役割 | 主なファイル |
 |---|---|---|
-| `domain/` | アプリの概念。Flutter・Firebase に依存しない | `Member`, `AccessStatus`, `StockStatus`, `Category`, `Item`, `Purchase`, `ClaimResult`、並び順の関数（`item_order.dart`）、カテゴリ名の入力チェック（`category_name_rules.dart`）、改善意見の `UserFeedback`・`FeedbackType`・`FeedbackStatus` と入力チェック・並べ替え・絞り込みの関数（`feedback_rules.dart`）、ユーザー管理の `AccessRequest`・`AllowedUser` とメモの入力チェック・並べ替えの関数（`user_rules.dart`） |
-| `data/` | Firestore・Authentication との読み書き。Firestore のデータと domain のクラスを相互に変換する | `AuthRepository`, `MemberRepository`, `ItemsRepository`, `CategoriesRepository`, `FeedbackRepository`, `UsersRepository` |
-| `presentation/` | 画面・ウィジェット・Riverpod の Provider | 各画面、`auth_providers.dart`, `items_providers.dart`, `connectivity_provider.dart`, `feedback_providers.dart`, `users_providers.dart` |
+| `domain/` | アプリの概念。Flutter・Firebase に依存しない | `Member`, `AccessStatus`, `StockStatus`, `Category`, `Item`, `Purchase`, `ClaimResult`、並び順の関数（`item_order.dart`）、カテゴリ名の入力チェック（`category_name_rules.dart`）、改善意見の `UserFeedback`・`FeedbackType`・`FeedbackStatus` と入力チェック・並べ替え・絞り込みの関数（`feedback_rules.dart`）、ユーザー管理の `AccessRequest`・`AllowedUser` とメモの入力チェック・並べ替えの関数（`user_rules.dart`）、バーコードの番号のそろえ方・検索（`barcode.dart`）、購入履歴の `PurchaseRecord` と残す期間・並べ替え・日付の書式（`history_rules.dart`）、買い物リストの並べ方（`shopping_order.dart`）と LINE で頼む文面・URL（`line_request.dart`） |
+| `data/` | Firestore・Authentication との読み書き。Firestore のデータと domain のクラスを相互に変換する | `AuthRepository`, `MemberRepository`, `ItemsRepository`, `CategoriesRepository`, `FeedbackRepository`, `UsersRepository`, `HistoryRepository` |
+| `presentation/` | 画面・ウィジェット・Riverpod の Provider | 各画面、`auth_providers.dart`, `items_providers.dart`, `connectivity_provider.dart`, `feedback_providers.dart`, `users_providers.dart`, `history_providers.dart` |
 
 - 依存の向きは `presentation → domain ← data`。画面は Repository を Provider 経由で使う。
 - `core/` はアプリ全体の土台（Firebase の Provider、画面遷移、テーマ、汎用の関数）。`shared/widgets/` は複数の機能で使うダイアログなど。
@@ -16,7 +16,11 @@
 | 依存元 | 依存先 | 理由 |
 |---|---|---|
 | `auth/presentation/auth_providers.dart` | `items/data/items_repository.dart` | 利用開始の準備で、初期カテゴリを作るため |
-| `shopping_list/` | `items/` の data・domain・presentation | 買い物リストは items のデータを別の切り口で表示する画面のため、独自の data・domain を持たない |
+| `auth/presentation/auth_providers.dart` | `history/data/history_repository.dart` | 利用開始の準備で、期限切れの購入履歴を消すため |
+| `shopping_list/` | `items/` の data・domain・presentation | 買い物リストは items のデータを別の切り口で表示する画面のため、独自の data を持たない（domain には並べ方と LINE の文面の関数だけを置く） |
+| `items/presentation/item_edit_sheet.dart` | `history/presentation/item_history_section.dart` | 編集シートにアイテムの購入履歴を出すため |
+| `history/` | `auth/` の presentation | ログイン中の uid（`currentUserProvider`）を監視するため |
+| `settings/` | `history/`（ルート `/settings/history` への導線のみ） | 「購入履歴」への導線（コードの import はなく、パスで移動する） |
 | `items/presentation/items_providers.dart` | `auth/data/member_repository.dart` | 自分の並び順（`users.itemOrder`）・閉じているカテゴリ（`users.hiddenCategories`）を読むため |
 | `settings/` | `auth/` の data・presentation | 表示名の変更・ログアウト |
 | `settings/` | `items/` の data・domain・presentation | カテゴリ管理画面（カテゴリの読み書き・カテゴリ名の入力チェック） |
@@ -38,10 +42,10 @@
 | Provider | 種類 | 内容 |
 |---|---|---|
 | `firebaseAuthProvider` / `firestoreProvider` | Provider | Firebase の各サービス（テストで差し替えられるよう Provider 経由で使う） |
-| `authRepositoryProvider` / `memberRepositoryProvider` / `itemsRepositoryProvider` / `categoriesRepositoryProvider` / `feedbackRepositoryProvider` / `usersRepositoryProvider` | Provider | Repository |
+| `authRepositoryProvider` / `memberRepositoryProvider` / `itemsRepositoryProvider` / `categoriesRepositoryProvider` / `feedbackRepositoryProvider` / `usersRepositoryProvider` / `historyRepositoryProvider` | Provider | Repository |
 | `authStateProvider` | StreamProvider | ログイン状態（`User?`） |
 | `currentUserProvider` | Provider | ログイン中のユーザー（未ログイン・確認中は null） |
-| `accessCheckProvider` | FutureProvider | 利用許可の確認と、利用開始の準備（メンバー登録・初期カテゴリ作成）。結果は `AccessStatus` |
+| `accessCheckProvider` | FutureProvider | 利用許可の確認と、利用開始の準備（メンバー登録・初期カテゴリ作成・期限切れの購入履歴の削除（待たない））。結果は `AccessStatus` |
 | `accessStatusProvider` | Provider | 画面の出し分けに使う判定結果。読み込み中は `checking`、エラーは `error` |
 | `deniedEmailProvider` | NotifierProvider | 利用を許可されなかったメールアドレス（アクセス権限エラー画面に表示する） |
 | `currentMemberProvider` | StreamProvider | 自分の `users` ドキュメント（表示名） |
@@ -59,6 +63,8 @@
 | `myAccessRequestProvider` | FutureProvider | 自分の追加の依頼がすでにあるか（アクセス権限エラー画面で使う）。依頼したとき・「もう一度確認する」で作り直す |
 | `accessRequestsProvider` | StreamProvider | 追加の依頼の一覧（古い順）。開発者のときだけユーザー管理ページから購読する |
 | `allowedUsersProvider` | StreamProvider | 利用を許可されたアカウントの一覧（開発者が先・メールアドレス順）。開発者のときだけユーザー管理ページから購読する |
+| `allHistoryProvider` | StreamProvider.autoDispose | すべての購入履歴（新しい順）。購入履歴の画面を開いている間だけ購読する |
+| `itemHistoryProvider` | StreamProvider.autoDispose.family | 1 つのアイテムの購入履歴（新しい順。引数はアイテム ID）。編集シートを開いている間だけ購読する |
 | `appRouterProvider` | Provider | `GoRouter`。`accessStatusProvider` を監視して画面を切り替える |
 
 ![Provider の依存関係](diagrams/providers.svg)
@@ -67,7 +73,7 @@
 
 ### サインアウト時の購読の停止
 
-`categoriesProvider`・`itemsProvider`・`myItemOrderProvider`・`myFeedbackProvider`・`allFeedbackProvider`・`accessRequestsProvider`・`allowedUsersProvider`・オフライン判定の購読は、ログイン中の uid を監視する。uid が null（サインアウト）になると空のリストを返す Stream に切り替わり、Firestore の購読をやめる。
+`categoriesProvider`・`itemsProvider`・`myItemOrderProvider`・`myFeedbackProvider`・`allFeedbackProvider`・`accessRequestsProvider`・`allowedUsersProvider`・`allHistoryProvider`・`itemHistoryProvider`・オフライン判定の購読は、ログイン中の uid を監視する。uid が null（サインアウト）になると空のリストを返す Stream に切り替わり、Firestore の購読をやめる。
 
 ## 4. Firebase の使い方
 

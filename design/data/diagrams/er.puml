@@ -29,6 +29,7 @@ entity "items" as items {
   categoryId : string
   status : sufficient / low / empty
   memo : string
+  barcodes : string の配列（10 個まで）
   purchase : map または null
   createdAt : timestamp
   updatedAt : timestamp
@@ -41,6 +42,16 @@ entity "purchase（items 内のマップ）" as purchase {
   byUid : string
   byName : string
   at : timestamp
+}
+
+entity "purchaseHistory" as purchaseHistory {
+  * id : ドキュメント ID
+  --
+  itemId : string
+  itemName : string
+  byUid : string
+  byName : string
+  purchasedAt : timestamp（1 年で削除）
 }
 
 entity "feedback" as feedback {
@@ -80,4 +91,6 @@ users ||--o{ items : updatedByUid
 items ||--o| purchase : purchase
 users ||--o{ purchase : byUid
 users }o..o{ items : itemOrder（自分の並び順）
+items ||..o{ purchaseHistory : itemId（アイテム削除後も残る）
+users ||--o{ purchaseHistory : byUid
 @enduml

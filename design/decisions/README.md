@@ -23,3 +23,6 @@
 | [0008](0008_offline_from_cache_state.md) | オフライン判定は Firestore のキャッシュ状態を使う | 採用 |
 | [0009](0009_feedback_in_app_for_developer.md) | 改善意見の一覧はアプリ内の別ページで、開発者だけが見る | 採用 |
 | [0010](0010_user_request_in_app.md) | 利用するアカウントの追加は、アプリ内の依頼と開発者の承認で行う | 採用 |
+| [0011](0011_purchase_history_cleanup_on_client.md) | 購入履歴は 1 年残し、期限切れの記録はアプリを開いたときに消す | 採用 |
+| [0012](0012_barcode_with_mobile_scanner.md) | バーコードはアプリに登録した番号と照らし合わせ、読み取りは mobile_scanner を使う | 採用 |
+| [0013](0013_line_request_by_share_url.md) | LINE で買い物を頼むときは、共有用の URL で LINE を開くだけにする | 採用 |

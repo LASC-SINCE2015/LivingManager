@@ -22,7 +22,8 @@
    1. 利用許可の確認（`AuthRepository.isAllowed`）。許可されていなければ `denied`。許可するアカウントのメールアドレスの実値はリポジトリでは管理しない。
    2. 自分の `users` ドキュメントがなければ作る（`MemberRepository.ensureExists`）。
    3. 初期カテゴリ（`water` / `other`）がなければ作る（`ItemsRepository.ensureInitialCategories`）。
-   4. `allowed` を返す → `/stock` へ移動する。
+   4. 残す期間（1 年）を過ぎた購入履歴を消す（`HistoryRepository.deleteExpired`）。終わるのを待たず、失敗しても無視する（次に開いたときにまた消す。[ADR 0011](../decisions/0011_purchase_history_cleanup_on_client.md)）。
+   5. `allowed` を返す → `/stock` へ移動する。
 4. 許可されていなかった場合は `/no_access` へ移動する。管理者に追加を依頼できるよう、ログインしたままにする（サインアウトは「別のアカウントでログイン」を押したとき。[screens/screen_flow.md](../screens/screen_flow.md)、[user_request.md](user_request.md)）。
 
 ## 3. 失敗したとき

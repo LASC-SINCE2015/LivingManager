@@ -271,6 +271,93 @@ describe('items', () => {
   });
 });
 
+describe('items（バーコード）', () => {
+  it('バーコードは 10 個まで、配列でなければ保存できない', async () => {
+    const ref = doc(dbOf(ALICE), 'items', 'sample');
+    const codes = (n) => Array.from({ length: n }, (_, i) => `490000000000${i}`);
+    await assertSucceeds(updateDoc(ref, { barcodes: codes(10) }));
+    await assertFails(updateDoc(ref, { barcodes: codes(11) }));
+    await assertFails(updateDoc(ref, { barcodes: '4901234567894' }));
+  });
+
+  it('バーコードだけを変えるときは更新者を変えなくてよい', async () => {
+    await assertSucceeds(updateDoc(doc(dbOf(BOB), 'items', 'sample'), { barcodes: ['4901234567894'] }));
+  });
+});
+
+describe('purchaseHistory', () => {
+  function newRecord(user, overrides = {}) {
+    return {
+      itemId: 'sample',
+      itemName: 'トイレットペーパー',
+      byUid: user.uid,
+      byName: user.uid,
+      purchasedAt: serverTimestamp(),
+      ...overrides,
+    };
+  }
+
+  const DAY = 24 * 60 * 60 * 1000;
+
+  async function seedRecord(id, user, purchasedAt) {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'purchaseHistory', id), newRecord(user, { purchasedAt }));
+    });
+  }
+
+  it('家族は自分の名義で記録を追加でき、全員が読める', async () => {
+    await assertSucceeds(setDoc(doc(dbOf(BOB), 'purchaseHistory', 'r1'), newRecord(BOB)));
+    await assertSucceeds(getDocs(collection(dbOf(ALICE), 'purchaseHistory')));
+    await assertFails(getDocs(collection(dbOf(MALLORY), 'purchaseHistory')));
+    await assertFails(setDoc(doc(dbOf(MALLORY), 'purchaseHistory', 'r2'), newRecord(MALLORY)));
+  });
+
+  it('他人の名義・決まった形以外・サーバー時刻以外の日時では追加できない', async () => {
+    const db = dbOf(BOB);
+    await assertFails(setDoc(doc(db, 'purchaseHistory', 'r1'), newRecord(ALICE)));
+    await assertFails(setDoc(doc(db, 'purchaseHistory', 'r2'), newRecord(BOB, { extra: 1 })));
+    await assertFails(setDoc(doc(db, 'purchaseHistory', 'r3'), newRecord(BOB, { itemName: '' })));
+    await assertFails(setDoc(doc(db, 'purchaseHistory', 'r4'), newRecord(BOB, { purchasedAt: new Date(Date.now() - DAY) })));
+  });
+
+  it('記録は変更できない', async () => {
+    await seedRecord('r1', BOB, new Date());
+    await assertFails(updateDoc(doc(dbOf(BOB), 'purchaseHistory', 'r1'), { itemName: '書き換え' }));
+  });
+
+  it('自分の記録は消せる（元に戻す）が、1 年以内の他人の記録は消せない', async () => {
+    await seedRecord('mine', BOB, new Date());
+    await seedRecord('alices', ALICE, new Date(Date.now() - 300 * DAY));
+    await assertSucceeds(deleteDoc(doc(dbOf(BOB), 'purchaseHistory', 'mine')));
+    await assertFails(deleteDoc(doc(dbOf(BOB), 'purchaseHistory', 'alices')));
+  });
+
+  it('1 年を過ぎた記録は、家族の誰でも消せる', async () => {
+    await seedRecord('old', ALICE, new Date(Date.now() - 367 * DAY));
+    await assertFails(deleteDoc(doc(dbOf(MALLORY), 'purchaseHistory', 'old')));
+    await assertSucceeds(deleteDoc(doc(dbOf(BOB), 'purchaseHistory', 'old')));
+  });
+
+  it('購入完了は、アイテムの更新と記録の追加を 1 回のバッチでできる', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'items', 'sample'), {
+        purchase: { state: 'in_cart', byUid: BOB.uid, byName: BOB.uid, at: new Date() },
+      });
+    });
+    const db = dbOf(BOB);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'items', 'sample'), {
+      status: 'sufficient',
+      purchase: null,
+      updatedAt: serverTimestamp(),
+      updatedByUid: BOB.uid,
+      updatedByName: BOB.uid,
+    });
+    batch.set(doc(db, 'purchaseHistory', 'r1'), newRecord(BOB));
+    await assertSucceeds(batch.commit());
+  });
+});
+
 describe('feedback', () => {
   it('家族は改善意見を送れる', async () => {
     await assertSucceeds(setDoc(doc(dbOf(BOB), 'feedback', 'new'), newFeedback(BOB)));

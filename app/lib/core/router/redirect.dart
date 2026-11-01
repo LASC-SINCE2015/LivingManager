@@ -12,6 +12,7 @@ const returnablePaths = {
   '/settings',
   '/settings/categories',
   '/settings/feedback',
+  '/settings/history',
   feedbackListPath,
   usersPath,
 };

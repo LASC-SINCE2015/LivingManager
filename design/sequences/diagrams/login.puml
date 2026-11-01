@@ -11,6 +11,7 @@ participant "accessCheckProvider" as check
 participant "AuthRepository" as authRepo
 participant "MemberRepository" as memberRepo
 participant "ItemsRepository" as itemsRepo
+participant "HistoryRepository" as historyRepo
 participant "Firebase\nAuthentication" as auth
 database "Firestore" as fs
 
@@ -32,6 +33,8 @@ else 許可されている
   memberRepo -> fs : users/{uid} を get\nなければ set
   check -> itemsRepo : ensureInitialCategories()
   itemsRepo -> fs : categories/water, other を get\nなければ set
+  check ->> historyRepo : deleteExpired(今)（終わるのを待たない）
+  historyRepo -> fs : purchaseHistory を purchasedAt < 境目 で get\n→ バッチで delete（失敗は無視）
   check -> router : allowed
   router -> router : /stock へ
 end

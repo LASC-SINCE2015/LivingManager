@@ -95,6 +95,13 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => context.go('/settings/categories'),
           ),
           ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('購入履歴'),
+            subtitle: const Text('いつ・誰が買ったか（直近1年）'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/history'),
+          ),
+          ListTile(
             leading: const Icon(Icons.feedback_outlined),
             title: const Text('改善意見を送る'),
             subtitle: const Text('不具合・要望などを開発者に送る'),
