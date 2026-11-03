@@ -20,7 +20,7 @@ LivingManager で「何を確認するか」と「確認した結果」を残す
 | 単体テスト | Flutter（ロジック） | `flutter test`（app/ で実行） | app/test/ |
 | ルールテスト | Firestore セキュリティルール | `npm test`（app/firebase/ で実行。Java 21 以上が必要） | app/firebase/tests/ |
 | ビルド | Web 版 | `flutter build web --dart-define-from-file=<設定ファイルのパス>` | − |
-| 実機確認 | スマホ・PC のブラウザ | 手作業（[test_plan.md](test_plan.md) のチェックリスト） | − |
+| 実機確認 | スマホ・PC のブラウザ | 手作業（[test_plan.md](test_plan.md) のチェックリスト）。まずテスト環境にデプロイして確認し、問題なければ本番に出す | − |
 
 ## 結果の残し方
 
