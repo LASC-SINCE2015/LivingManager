@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../../core/config/app_env.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/snack_bars.dart';
 import '../../../shared/widgets/text_input_dialog.dart';
@@ -126,7 +127,11 @@ class SettingsPage extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('バージョン'),
-            subtitle: Text(version ?? ''),
+            subtitle: Text(
+              AppEnv.isDev && version != null
+                  ? '$version（テスト環境）'
+                  : version ?? '',
+            ),
           ),
         ],
       ),
