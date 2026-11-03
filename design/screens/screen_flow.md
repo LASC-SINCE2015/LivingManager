@@ -14,6 +14,7 @@
 | `/settings` | `SettingsPage` | タブ 3 |
 | `/settings/categories` | `CategoriesPage` | カテゴリ管理。`/settings` の下のルート（タブ 3 の中で開く） |
 | `/settings/feedback` | `SendFeedbackPage` | 改善意見を送る。`/settings` の下のルート（タブ 3 の中で開く） |
+| `/settings/history` | `HistoryPage` | 購入履歴。`/settings` の下のルート（タブ 3 の中で開く） |
 | `/feedback` | `FeedbackListPage` | 改善意見の一覧（開発者用）。タブの外の独立したページで、ナビゲーションは表示しない。開発者でなければ「このページを見る権限がありません」を表示する |
 | `/users` | `UsersPage` | ユーザー管理（開発者用）。追加の依頼の承認・却下と、許可済みのアカウントの一覧。`/feedback` と同じくタブの外の独立したページで、開発者でなければ「このページを見る権限がありません」を表示する |
 
@@ -21,6 +22,8 @@
 - 買い物リストのタブには、`shoppingCountProvider` の件数を `Badge` で表示する（0 件のときは非表示）。`NavigationRail` でも同じ。
 - オフライン中は、`HomeShell` が画面上部にオフライン表示を出す（[widgets.md](widgets.md)）。
 - アイテムの追加・編集はルートを持たず、モーダルボトムシート（`showItemEditSheet`）で開く。
+- バーコードの読み取り画面（`BarcodeScannerPage`）もルートを持たず、`Navigator.push`（`fullscreenDialog`）で開いて、読み取った番号を戻り値で返す（`scanBarcode`）。
+- 「LINEで送る」はアプリの外（`https://line.me/R/share`）を開く。アプリの画面は買い物リストのまま。
 
 ![画面遷移図](diagrams/screen_flow.svg)
 
@@ -57,7 +60,7 @@
 
 - `/no_access` は、判定中・未ログインでもそのまま表示し続ける。アクセス権限エラー画面では、ログインしたまま「もう一度確認する」（`accessCheckProvider` を作り直す）で `denied` → `checking` → `denied` / `allowed` と変わることや、「別のアカウントでログイン」でサインアウトして `signedOut` になることがあり、その途中で画面が切り替わらないようにしている。承認されていて `allowed` になったときだけ、戻り先（なければ `/stock`）へ移動する。
 - `denied` になったとき、`appRouterProvider` がそのときのメールアドレスを `deniedEmailProvider` に入れる（アクセス権限エラー画面に表示するため。URL には入れない）。「別のアカウントでログイン」を押すと、サインアウトしてから `deniedEmailProvider` を空にし、`/login` へ移動する。
-- 「タブの画面」は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`。
+- 「タブの画面」は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`・`/settings/history`。
 - `/feedback`（改善意見の一覧）と `/users`（ユーザー管理）も、ログインして利用を許可されていることが前提なので、タブの画面と同じ扱いになる。開発者かどうかは redirect では判定せず、ページの中で判定して表示を切り替える。
 
 ### 戻り先（クエリ `from`）
@@ -66,7 +69,7 @@
 
 - `/splash`・`/login` へ送るとき、今いる画面が「戻ってよい画面」ならそのパスを `from` に入れる（例: `/login?from=%2Fshopping_list`）。今いる画面に `from` が付いていれば、それを引き継ぐ。
 - `allowed` になったとき、`from` があればその画面へ、なければ `/stock` へ移動する。
-- 戻ってよい画面は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`・`/feedback`・`/users` の 7 つだけ（`returnablePaths`）。それ以外の値の `from` は無視する（外部の URL などへ誘導されないようにするため）。
+- 戻ってよい画面は `/stock`・`/shopping_list`・`/settings`・`/settings/categories`・`/settings/feedback`・`/settings/history`・`/feedback`・`/users` の 8 つだけ（`returnablePaths`）。それ以外の値の `from` は無視する（外部の URL などへ誘導されないようにするため）。
 - `from` にはパスだけを入れ、メールアドレスなどの個人情報は入れない。
 - 設定画面からログアウトすると `from=/settings` が付くため、次にログインしたときは設定画面に戻る。
 

@@ -52,6 +52,7 @@ class Item {
     required this.categoryId,
     required this.status,
     required this.memo,
+    this.barcodes = const [],
     required this.purchase,
     required this.createdAt,
     required this.updatedAt,
@@ -64,6 +65,9 @@ class Item {
   final String categoryId;
   final StockStatus status;
   final String memo;
+
+  /// 登録したバーコード（JAN など。`normalizeBarcode` でそろえた値）
+  final List<String> barcodes;
 
   /// 買い物の状況。誰も担当していなければ null
   final Purchase? purchase;

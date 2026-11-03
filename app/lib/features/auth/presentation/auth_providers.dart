@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../history/data/history_repository.dart';
 import '../../items/data/items_repository.dart';
 import '../data/auth_repository.dart';
 import '../data/member_repository.dart';
@@ -18,7 +21,7 @@ final currentUserProvider = Provider<User?>(
 );
 
 /// 利用を許可されたアカウントかの判定と、使い始める準備
-/// （メンバー登録・初期カテゴリの作成）
+/// （メンバー登録・初期カテゴリの作成・期限切れの購入履歴の削除）
 final accessCheckProvider = FutureProvider<AccessStatus>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return AccessStatus.signedOut;
@@ -28,6 +31,13 @@ final accessCheckProvider = FutureProvider<AccessStatus>((ref) async {
 
   await ref.read(memberRepositoryProvider).ensureExists(user);
   await ref.read(itemsRepositoryProvider).ensureInitialCategories();
+  // 期限切れの購入履歴の削除は、終わるのを待たない（失敗しても次に開いたときに消す）
+  unawaited(
+    ref
+        .read(historyRepositoryProvider)
+        .deleteExpired(DateTime.now())
+        .then((_) {}, onError: (Object _) {}),
+  );
   return AccessStatus.allowed;
 });
 

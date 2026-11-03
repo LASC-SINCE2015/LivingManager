@@ -12,7 +12,8 @@
 |---|---|---|---|
 | `users` | Authentication の uid | `Member`（`uid`, `displayName`）。`itemOrder` は `Map<String, List<String>>` として別に読む（`watchItemOrder`） | `MemberRepository` |
 | `categories` | 自動採番（初期カテゴリは `water` / `other`） | `Category`（`id`, `name`, `order`） | 読み取り・追加: `ItemsRepository`、名前変更・並べ替え・削除: `CategoriesRepository` |
-| `items` | 自動採番 | `Item`、`purchase` は `Purchase` | `ItemsRepository` |
+| `items` | 自動採番 | `Item`、`purchase` は `Purchase`、`barcodes` は `List<String>` | `ItemsRepository` |
+| `purchaseHistory` | 自動採番 | `PurchaseRecord`（`id`, `itemId`, `itemName`, `byUid`, `byName`, `purchasedAt`） | 追加・「元に戻す」での削除: `ItemsRepository`（購入完了と同時に行うため）、読み取り・期限切れの削除: `HistoryRepository` |
 | `feedback` | 自動採番 | `UserFeedback`（`type` は `FeedbackType`、`status` は `FeedbackStatus`） | `FeedbackRepository` |
 | `allowedUsers` | メールアドレス（小文字） | `AllowedUser`（`email`, `memo`, `admin`）。`approvedAt` は持たない | 利用許可・開発者の判定: `AuthRepository`、一覧・追加（承認）: `UsersRepository` |
 | `accessRequests` | メールアドレス（小文字） | `AccessRequest`（`email`, `displayName`, `requestedAt`）。`uid` は持たない | `UsersRepository` |
@@ -31,12 +32,13 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 |---|---|
 | `status` | 未知の値は `sufficient` として扱う（`StockStatus.fromValue`） |
 | `purchase` | マップでなければ null（未担当） |
+| `barcodes` | 配列でなければ空。文字列でない要素は無視する |
 | `purchase.state` | 未知の値は `planned` として扱う（`PurchaseState.fromValue`） |
 | `feedback.type` / `feedback.status` | 未知の値はそれぞれ `other` / `open` として扱う（`FeedbackType.fromValue` / `FeedbackStatus.fromValue`） |
 | `allowedUsers.admin` | `true` 以外（ない・`false`・型違い）は一般の家族として扱う |
 | `categoryId` | なければ `other` |
 | 文字列（`name`, `memo`, `updatedByName` など） | なければ空文字 |
-| 日時（`createdAt`, `updatedAt`, `purchase.at`, `requestedAt`） | `Timestamp` でなければ null。保存直後でサーバー時刻が未確定のときも null になり、画面には「たった今」と表示する |
+| 日時（`createdAt`, `updatedAt`, `purchase.at`, `requestedAt`, `purchasedAt`） | `Timestamp` でなければ null。保存直後でサーバー時刻が未確定のときも null になり、画面には「たった今」と表示する |
 
 - アイテムの `categoryId` がどのカテゴリにも当てはまらない（カテゴリが削除された）場合、画面では「その他」に入れて表示する。
 
@@ -62,14 +64,16 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | カテゴリの名前変更 | `CategoriesRepository.rename` | update | `name`, `updatedAt` |
 | カテゴリの並べ替え | `CategoriesRepository.reorder` | **バッチ** | 「その他」を除くカテゴリの `order` を 1 から振り直す, `updatedAt` |
 | カテゴリの削除 | `CategoriesRepository.delete` | 所属アイテムを get → **バッチ** | 所属アイテムすべてに `categoryId: other`（更新者は変えない）、カテゴリを delete。「その他」は削除できない |
-| アイテムの追加 | `addItem` | add | `purchase: null`、`memo` は空でも文字列で保存、`createdAt`、更新者 |
-| アイテムの編集 | `updateItem` | update | 名前・カテゴリ・ステータス・メモ・更新者。「十分」なら `purchase: null` |
+| アイテムの追加 | `addItem` | add | `purchase: null`、`memo` は空でも文字列で保存、`barcodes`（なければ空の配列）、`createdAt`、更新者 |
+| アイテムの編集 | `updateItem` | update | 名前・カテゴリ・ステータス・メモ・`barcodes`（配列を丸ごと）・更新者。「十分」なら `purchase: null` |
+| 既存のアイテムへのバーコードの登録 | `addBarcode` | update | `barcodes` に `arrayUnion` で追加（更新者は変えない。[ADR 0013](../decisions/0013_barcode_with_mobile_scanner.md)） |
 | アイテムの削除 | `deleteItem` | delete | ― |
 | ステータスの変更 | `changeStatus` | update | ステータス・更新者。「十分」なら `purchase: null` |
 | 担当宣言・カゴ済み | `claim` | **トランザクション** | `purchase`（`state`, `byUid`, `byName`, `at`） |
 | 担当をやめる | `release` | **トランザクション** | 自分の担当のときだけ `purchase: null` |
 | カゴ済みのチェックを外す | `uncheck` | **トランザクション** | 自分のカゴ済みのときだけ `purchase.state: planned` |
-| 購入完了 | `completePurchase` | **バッチ** | 対象アイテムすべてに `status: sufficient`, `purchase: null`, 更新者 |
+| 購入完了 | `completePurchase` | **バッチ** | 対象アイテムすべてに `status: sufficient`, `purchase: null`, 更新者。アイテムごとに `purchaseHistory` を 1 件 set（`itemId`, `itemName`, `byUid`, `byName`, `purchasedAt`）。アイテム ID → 記録の ID を返す |
+| 期限切れの購入履歴の削除 | `HistoryRepository.deleteExpired` | query で get → **バッチ**（500 件ずつ） | `purchasedAt` が 1 年と 1 日より前の記録を delete |
 | 改善意見の送信 | `FeedbackRepository.submit` | add | `type`, `body`, `appVersion`（取得できなければ「不明」）, `byUid`, `byName`（その時点の表示名）, `createdAt`, `status: open`, `devMemo: ''` |
 | 改善意見の状態の変更（開発者） | `FeedbackRepository.updateStatus` | update | `status`, `statusUpdatedAt` |
 | 改善意見のメモの変更（開発者） | `FeedbackRepository.updateMemo` | update | `devMemo`, `statusUpdatedAt` |
@@ -102,7 +106,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 
 ### 購入完了（`completePurchase`）
 
-自分がカゴ済みにしたアイテムを 1 回のバッチでまとめて「十分」に戻す。一部だけ成功することはない。
+自分がカゴ済みにしたアイテムを 1 回のバッチでまとめて「十分」に戻し、同じバッチで購入履歴を追加する。一部だけ成功することはない。
 
 ### 元に戻す（`revertStatus` / `revertPurchase`）
 
@@ -111,7 +115,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | | 戻せる条件（トランザクションで読んだ時点） | 戻す内容 |
 |---|---|---|
 | `revertStatus` | `updatedByUid` が自分、かつステータスが自分が設定した値のまま | 操作前のステータス。更新者は自分、`updatedAt` はサーバー時刻 |
-| `revertPurchase` | アイテムごとに、`updatedByUid` が自分・ステータスが「十分」・`purchase` が null のまま | 操作前のステータスと、自分のカゴ済み（`at` も操作前の値）。更新者は自分。戻せた件数を返す |
+| `revertPurchase` | アイテムごとに、`updatedByUid` が自分・ステータスが「十分」・`purchase` が null のまま | 操作前のステータスと、自分のカゴ済み（`at` も操作前の値）。更新者は自分。購入完了で追加した購入履歴の記録を delete。戻せた件数を返す |
 
 担当・カゴ済みの扱い（`revertStatus`）:
 
@@ -165,3 +169,20 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 - 承認は、許可リストへの追加と依頼の削除を 1 回のバッチで行う。片方だけ成功して「追加されたのに依頼が残る」ことはない。すでに許可リストにあるアカウントの依頼を承認しようとした場合は、許可リストの変更にあたるためルールで拒否され、バッチ全体が失敗する。
 - 許可リストのメモ・開発者の変更と削除は、アプリでは行わない（Firebase コンソールから）。
 - 設計の判断は [ADR 0010](../decisions/0010_user_request_in_app.md)。処理の流れは [sequences/user_request.md](../sequences/user_request.md)。
+
+## 9. 購入履歴（`purchaseHistory`）
+
+- 追加: 購入完了のときに、アイテムの更新と同じバッチで 1 アイテム 1 件追加する（`ItemsRepository.completePurchase`）。在庫一覧で「十分」に変えただけでは追加しない。
+- 読み取りは 2 通り。どちらも画面を開いている間だけ購読する（`autoDispose`）。
+  - すべての記録: `watchAll()`（`allHistoryProvider`）。購入履歴の画面で使う。
+  - 1 つのアイテムの記録: `watchForItem(itemId)` は `itemId` が等しいものだけを購読する（`itemHistoryProvider`）。アイテム編集シートで使う。単一フィールドの条件なので複合インデックスは不要。
+- 並べ替え（`purchasedAt` の新しい順。保存中で日時が未確定のものは先頭）とアイテム名での絞り込みは、アプリ側で行う（`sortRecordsNewestFirst`。[ADR 0003](../decisions/0003_sort_on_client.md)）。
+- 削除: 「元に戻す」で自分の記録を消す（`revertPurchase`）のと、残す期間（1 年）を過ぎた記録をアプリを開いたときに消す（`deleteExpired`）のの 2 通り。境目は端末の時計のずれを見込んで 1 年と 1 日前（`expiryCutoff`）。ルールはサーバー時刻で 1 年を過ぎた記録だけを、誰でも消せるようにしている（[ADR 0012](../decisions/0012_purchase_history_cleanup_on_client.md)）。
+- アイテムを削除しても記録は消さない（アイテム名は記録の時点のものを持つ）。
+
+## 10. バーコード（`items.barcodes`）
+
+- 形: `normalizeBarcode` でそろえた番号（JAN-8・JAN-13・ITF-14。UPC-A は先頭に 0 を付けた 13 桁）の配列。1 アイテム 10 個まで（`maxBarcodesPerItem`。ルールでも確認する）。
+- 同じ番号をほかのアイテムに登録しない。確認はアプリ側で、追加するとき・編集シートで保存するときに行う（`findItemByBarcode`）。
+- 探す: 読み取った番号が登録されているアイテムがあれば、在庫一覧の検索欄にその番号を入れる。検索は、名前・メモに含まれるか、バーコードの番号と等しいアイテムを出す。
+- 設計の判断は [ADR 0013](../decisions/0013_barcode_with_mobile_scanner.md)。

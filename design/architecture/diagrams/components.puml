@@ -10,8 +10,9 @@ package "app/lib" {
 
   package "presentation（画面）" {
     [auth\nログイン・権限エラー・スプラッシュ] as authP
-    [items\n在庫一覧・編集シート] as itemsP
-    [shopping_list\n買い物リスト] as shopP
+    [items\n在庫一覧・編集シート・バーコードの読み取り] as itemsP
+    [shopping_list\n買い物リスト・LINE で頼む] as shopP
+    [history\n購入履歴] as histP
     [settings\n設定] as setP
     [feedback\n改善意見の送信・一覧（開発者用）] as fbP
     [users\n追加の依頼・ユーザー管理（開発者用）] as usersP
@@ -22,6 +23,7 @@ package "app/lib" {
     [items\nItemsRepository] as itemsD
     [feedback\nFeedbackRepository] as fbD
     [users\nUsersRepository] as usersD
+    [history\nHistoryRepository] as histD
   }
 
   package "domain（モデル）" {
@@ -29,10 +31,14 @@ package "app/lib" {
     [items\nItem / Category / StockStatus] as itemsM
     [feedback\nUserFeedback] as fbM
     [users\nAccessRequest / AllowedUser] as usersM
+    [history\nPurchaseRecord] as histM
   }
 
   [core/firebase\n(Provider)] as fbp
 }
+
+[mobile_scanner\n(カメラでバーコードを読む)] as scanner
+[LINE\n(line.me/R/share)] as line
 
 cloud "Firebase" {
   [Authentication] as auth
@@ -46,9 +52,15 @@ router --> shopP
 router --> setP
 router --> fbP
 router --> usersP
+router --> histP
 
 authP --> authD
 authP --> itemsD : 初期カテゴリ作成
+authP --> histD : 期限切れの履歴を削除
+itemsP --> histP : 編集シートの購入履歴
+itemsP --> scanner
+shopP --> line : 頼む文面を開く
+histP --> histD
 itemsP --> itemsD
 shopP --> itemsD
 setP --> authD
@@ -60,11 +72,13 @@ authD --> authM
 itemsD --> itemsM
 fbD --> fbM
 usersD --> usersM
+histD --> histM
 
 authD --> fbp
 itemsD --> fbp
 fbD --> fbp
 usersD --> fbp
+histD --> fbp
 fbp --> auth
 fbp --> fs
 

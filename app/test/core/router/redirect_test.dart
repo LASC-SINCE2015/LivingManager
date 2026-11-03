@@ -40,6 +40,11 @@ void main() {
       expect(go(AccessStatus.allowed, '/splash?from=%2Fsettings%2Ffeedback'), '/settings/feedback');
     });
 
+    test('購入履歴の画面にもログイン後に戻れる', () {
+      expect(go(AccessStatus.signedOut, '/settings/history'), '/login?from=%2Fsettings%2Fhistory');
+      expect(go(AccessStatus.allowed, '/splash?from=%2Fsettings%2Fhistory'), '/settings/history');
+    });
+
     test('ユーザー管理の画面にもログイン後に戻れる', () {
       expect(go(AccessStatus.signedOut, '/users'), '/login?from=%2Fusers');
       expect(go(AccessStatus.allowed, '/splash?from=%2Fusers'), '/users');

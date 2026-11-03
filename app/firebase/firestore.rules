@@ -84,12 +84,15 @@ service cloud.firestore {
     match /items/{itemId} {
       function validItem(data) {
         return data.keys().hasOnly([
-            'name', 'categoryId', 'status', 'memo', 'purchase',
+            'name', 'categoryId', 'status', 'memo', 'barcodes', 'purchase',
             'createdAt', 'updatedAt', 'updatedByUid', 'updatedByName'])
           && isText(data.name, 1, 50)
           && data.categoryId is string
           && data.status in ['sufficient', 'low', 'empty']
           && isText(data.memo, 0, 200)
+          // バーコードは 10 個まで
+          && data.get('barcodes', []) is list
+          && data.get('barcodes', []).size() <= 10
           && isText(data.updatedByName, 0, 20)
           // 「十分」のときは担当・カゴ済みを持たない
           && (data.status != 'sufficient' || data.get('purchase', null) == null);
@@ -117,6 +120,24 @@ service cloud.firestore {
         && (validPurchase(request.resource.data.get('purchase', null))
           || request.resource.data.get('purchase', null) == resource.data.get('purchase', null));
       allow delete: if isMember();
+    }
+
+    // 購入履歴: 購入完了のときに自分の名義で追加する。変更はできない。
+    // 削除できるのは、「元に戻す」での自分の記録と、残す期間（1 年）を過ぎた記録
+    // （Cloud Functions を使わないため、アプリを開いた家族の誰かが消す）
+    match /purchaseHistory/{recordId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly([
+            'itemId', 'itemName', 'byUid', 'byName', 'purchasedAt'])
+        && request.resource.data.itemId is string
+        && isText(request.resource.data.itemName, 1, 50)
+        && request.resource.data.byUid == request.auth.uid
+        && isText(request.resource.data.byName, 0, 20)
+        && request.resource.data.purchasedAt == request.time;
+      allow delete: if isMember()
+        && (resource.data.byUid == request.auth.uid
+          || resource.data.purchasedAt < request.time - duration.value(365, 'd'));
     }
 
     // 改善意見: 送った本人と開発者だけが読める。状態・メモの変更と削除は開発者のみ

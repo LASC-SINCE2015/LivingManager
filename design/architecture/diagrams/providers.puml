@@ -43,6 +43,12 @@ rectangle "feedback" {
   rectangle "allFeedbackProvider\nStream: すべての意見" as allFb
 }
 
+rectangle "history" {
+  rectangle "historyRepositoryProvider" as histRepo
+  rectangle "allHistoryProvider\nStream: すべての履歴（autoDispose）" as allHist
+  rectangle "itemHistoryProvider\nStream: アイテムの履歴（autoDispose.family）" as itemHist
+}
+
 rectangle "users" {
   rectangle "usersRepositoryProvider" as usersRepo
   rectangle "myAccessRequestProvider\nFuture: 依頼済みか" as myReq
@@ -61,6 +67,12 @@ accessCheck --> authState
 accessCheck --> authRepo : 利用許可の確認
 accessCheck --> memberRepo : メンバー登録
 accessCheck --> itemsRepo : 初期カテゴリ作成
+accessCheck --> histRepo : 期限切れの履歴を削除
+histRepo --> fs
+allHist --> currentUser : uid
+allHist --> histRepo
+itemHist --> currentUser : uid
+itemHist --> histRepo
 accessStatus --> accessCheck
 currentMember --> currentUser
 currentMember --> memberRepo
