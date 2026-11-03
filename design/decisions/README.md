@@ -27,3 +27,4 @@
 | [0012](0012_purchase_history_cleanup_on_client.md) | 購入履歴は 1 年残し、期限切れの記録はアプリを開いたときに消す | 採用 |
 | [0013](0013_barcode_with_mobile_scanner.md) | バーコードはアプリに登録した番号と照らし合わせ、読み取りは mobile_scanner を使う | 採用 |
 | [0014](0014_line_request_by_share_url.md) | LINE で買い物を頼むときは、共有用の URL で LINE を開くだけにする | 採用 |
+| [0015](0015_auto_deploy_with_github_actions.md) | develop・master へのマージで、GitHub Actions が自動でデプロイする | 採用 |

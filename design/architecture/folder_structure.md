@@ -15,6 +15,7 @@
 （リポジトリ直下）
 ├─ README.md
 ├─ .gitignore
+├─ .github/workflows/           … GitHub Actions（develop・master へのマージで自動デプロイ。deploy.yml）
 ├─ spec/                        … 仕様書（何を作るか）
 ├─ design/                      … 設計書（どう作るか）。用途別のフォルダに分ける（design/README.md）
 ├─ testing/                     … 確認内容と確認結果の記録
@@ -90,6 +91,7 @@ app/
 
 - `lib/firebase_options.dart` は `String.fromEnvironment` で値を読むだけなので、リポジトリに含めてよい。
 - 本番とテスト環境は別の Firebase プロジェクトにし、設定ファイルも環境ごとに分ける（[0011](../decisions/0011_separate_dev_project.md)）。設定ファイルの `APP_ENV`（`prod` / `dev`）で、アプリにテスト環境の表示を出すかが決まる。
+- 自動デプロイ（GitHub Actions）では、設定ファイルの中身とデプロイ用の鍵を GitHub の Environments の Secrets に置き、実行時にファイルに書き出して使う（[0015](../decisions/0015_auto_deploy_with_github_actions.md)）。
 - 補足: Web の設定値はビルド後の JS に含まれ、ブラウザから見える。厳密な秘密ではないが、方針としてリポジトリには置かない。実際の保護は Firestore ルールと Authentication で行う。
 
 ## Firestore ルールのテスト
