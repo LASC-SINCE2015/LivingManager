@@ -11,6 +11,7 @@ LivingManager で「何を確認するか」と「確認した結果」を残す
   - [2026-10-25 feature_spec_completion（PoC で後回しにした機能）](results/2026-10-25_feature_spec_completion.md)
   - [2026-10-25 feature_feedback（改善意見）](results/2026-10-25_feature_feedback.md)
   - [2026-10-25 feature_user_request（追加の依頼・ユーザー管理）](results/2026-10-25_feature_user_request.md)
+  - [2026-11-03 feature_dev_env（テスト環境の用意）](results/2026-11-03_feature_dev_env.md)
 
 ## 確認の種類
 
