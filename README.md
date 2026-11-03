@@ -10,4 +10,8 @@
 | [design/](design/README.md) | 設計書（どう作るか）。図は PlantUML と SVG |
 | [testing/](testing/README.md) | 確認内容（テスト計画）と確認結果 |
 | [app/](app/README.md) | Flutter Web アプリ本体・Firestore ルール |
-| [tools/](tools/README.md) | 開発用スクリプト（PlantUML → SVG など） |
+| [tools/](tools/README.md) | 開発用スクリプト（PlantUML → SVG など）・デプロイの方法 |
+
+## デプロイ
+
+`develop` にマージするとテスト環境に、`master` にマージすると本番に、GitHub Actions が自動でデプロイします（[tools/README.md](tools/README.md#自動デプロイgithub-actions)）。

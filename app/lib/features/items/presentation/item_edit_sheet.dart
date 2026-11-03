@@ -6,19 +6,25 @@ import '../../../core/utils/text_normalizer.dart';
 import '../../../shared/widgets/snack_bars.dart';
 import '../../../shared/widgets/text_input_dialog.dart';
 import '../../auth/presentation/auth_providers.dart';
+import '../../history/presentation/item_history_section.dart';
 import '../data/items_repository.dart';
+import '../domain/barcode.dart';
 import '../domain/category.dart';
 import '../domain/item.dart';
 import '../domain/stock_status.dart';
+import 'barcode_scanner.dart';
 import 'items_providers.dart';
 import 'status_selector.dart';
 
-/// アイテム追加・編集のシートを開く（[item] を渡すと編集）
+/// アイテム追加・編集のシートを開く（[item] を渡すと編集）。
+///
+/// [initialBarcode] は、読み取ったバーコードから追加するときに入れておく値。
 Future<void> showItemEditSheet(
   BuildContext context, {
   Item? item,
   String? initialCategoryId,
   StockStatus initialStatus = StockStatus.sufficient,
+  String? initialBarcode,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -29,6 +35,7 @@ Future<void> showItemEditSheet(
       item: item,
       initialCategoryId: initialCategoryId,
       initialStatus: initialStatus,
+      initialBarcode: initialBarcode,
     ),
   );
 }
@@ -40,11 +47,13 @@ class ItemEditSheet extends ConsumerStatefulWidget {
     this.item,
     this.initialCategoryId,
     this.initialStatus = StockStatus.sufficient,
+    this.initialBarcode,
   });
 
   final Item? item;
   final String? initialCategoryId;
   final StockStatus initialStatus;
+  final String? initialBarcode;
 
   @override
   ConsumerState<ItemEditSheet> createState() => _ItemEditSheetState();
@@ -68,6 +77,13 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
   late String _categoryId =
       widget.item?.categoryId ?? widget.initialCategoryId ?? Category.otherId;
   late StockStatus _status = widget.item?.status ?? widget.initialStatus;
+  late final List<String> _barcodes = [
+    ...?widget.item?.barcodes,
+    ?widget.initialBarcode,
+  ];
+
+  /// バーコードの追加・保存ができなかった理由（シートの中に表示する）
+  String? _barcodeError;
 
   /// カテゴリの選択肢を作り直すための番号（追加をキャンセルしたとき元に戻す）
   int _categoryFieldVersion = 0;
@@ -145,8 +161,44 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
     });
   }
 
+  /// バーコードを読み取って追加する
+  Future<void> _scanBarcode() async {
+    final code = await scanBarcode(context);
+    if (code == null || !mounted) return;
+    final items = ref.read(itemsProvider).value ?? const <Item>[];
+    setState(() {
+      _barcodeError = _barcodeProblem(code, items);
+      if (_barcodeError == null) _barcodes.add(code);
+    });
+  }
+
+  /// [code] を追加できない理由（追加できるなら null）
+  String? _barcodeProblem(String code, List<Item> items) {
+    if (_barcodes.contains(code)) return 'このバーコードはすでに登録しています';
+    if (_barcodes.length >= maxBarcodesPerItem) {
+      return 'バーコードは$maxBarcodesPerItem個まで登録できます';
+    }
+    return _duplicateMessage(code, items);
+  }
+
+  /// ほかのアイテムに登録済みなら、そのことを表す文
+  String? _duplicateMessage(String code, List<Item> items) {
+    final other = findItemByBarcode(items, code, exceptItemId: widget.item?.id);
+    return other == null ? null : 'このバーコードは『${other.name}』に登録されています';
+  }
+
   Future<void> _save(List<Category> categories) async {
     if (!_formKey.currentState!.validate()) return;
+    // 編集中にほかの人が同じバーコードを登録していたら保存しない
+    final items = ref.read(itemsProvider).value ?? const <Item>[];
+    final duplicate = _barcodes
+        .map((code) => _duplicateMessage(code, items))
+        .nonNulls
+        .firstOrNull;
+    if (duplicate != null) {
+      setState(() => _barcodeError = duplicate);
+      return;
+    }
     final actor = ref.read(actorProvider);
     if (actor == null) return;
 
@@ -168,6 +220,7 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
           categoryId: categoryId,
           status: _status,
           memo: memo,
+          barcodes: _barcodes,
           actor: actor,
         );
       } else {
@@ -176,6 +229,7 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
           categoryId: categoryId,
           status: _status,
           memo: memo,
+          barcodes: _barcodes,
           actor: actor,
         );
       }
@@ -220,9 +274,7 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
         : items.where((item) => item.id == widget.item!.id).firstOrNull;
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Form(
@@ -296,6 +348,43 @@ class _ItemEditSheetState extends ConsumerState<ItemEditSheet> {
                   hintText: '例: 銘柄は〇〇、詰め替え用',
                 ),
               ),
+              const SizedBox(height: 8),
+              Text('バーコード（任意）', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final code in _barcodes)
+                    InputChip(
+                      label: Text(code),
+                      onDeleted: () => setState(() {
+                        _barcodes.remove(code);
+                        _barcodeError = null;
+                      }),
+                      deleteButtonTooltipMessage: 'バーコードを外す',
+                    ),
+                  ActionChip(
+                    avatar: const Icon(Icons.qr_code_scanner, size: 18),
+                    label: const Text('読み取って追加'),
+                    onPressed: _saving ? null : _scanBarcode,
+                  ),
+                ],
+              ),
+              if (_barcodeError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _barcodeError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (widget.item case final item?) ...[
+                const SizedBox(height: 16),
+                ItemHistorySection(itemId: item.id),
+              ],
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

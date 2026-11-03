@@ -9,6 +9,7 @@ import '../../features/auth/presentation/no_access_page.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/feedback/presentation/feedback_list_page.dart';
 import '../../features/feedback/presentation/send_feedback_page.dart';
+import '../../features/history/presentation/history_page.dart';
 import '../../features/items/presentation/stock_page.dart';
 import '../../features/settings/presentation/categories_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
@@ -80,6 +81,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'feedback',
                     builder: (context, state) => const SendFeedbackPage(),
+                  ),
+                  GoRoute(
+                    path: 'history',
+                    builder: (context, state) => const HistoryPage(),
                   ),
                 ],
               ),

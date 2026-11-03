@@ -42,6 +42,15 @@ Firestore のトランザクションは、読んだドキュメントがコミ�
 元データ: [complete_purchase.puml](diagrams/complete_purchase.puml)
 
 1. 対象は、画面に表示している一覧のうち「自分がカゴ済みにした、残りわずか・切れてるのアイテム」。
-2. 確認なしで、`completePurchase` が 1 回のバッチで `status: sufficient`, `purchase: null`, 更新者（自分）を書く。
+2. 確認なしで、`completePurchase` が 1 回のバッチで `status: sufficient`, `purchase: null`, 更新者（自分）を書き、同じバッチでアイテムごとに購入履歴（`purchaseHistory`）を 1 件追加する。記録の ID はアイテム ID と組にして返す。
 3. 成功したら「N件を購入完了にしました [元に戻す]」を 5 秒表示する。買い物リストからはリアルタイムに消える。
-4. 「元に戻す」を押すと `revertPurchase` で戻す（[undo.md](undo.md)）。
+4. 「元に戻す」を押すと `revertPurchase` で戻す（[undo.md](undo.md)）。戻せたアイテムの購入履歴の記録も、同じトランザクションで消す。
+
+## 4. LINE で買い物を頼む
+
+関係するもの: `ShoppingListPage`（選択モード）, `orderShoppingItems` / `isSelectableForRequest`（`shopping_list/domain/shopping_order.dart`）, `buildLineRequestText` / `lineShareUri`（`shopping_list/domain/line_request.dart`）
+
+1. 画面上部の「LINEで頼む」を押すと選択モードになる。チェックボックスは「頼むものの選択」に変わり、担当の操作ボタン・＋ボタンは出さない。誰かがカゴに入れたアイテムは選べない。
+2. 「LINEで送る（N件）」を押すと、選んだアイテムを買い物リストと同じ順（`orderShoppingItems`）に並べて文面を作り、`https://line.me/R/share?text=<文面>` を開く（`url_launcher`）。スマホでは LINE アプリの送信先選択が開く。
+3. ブラウザにポップアップとして止められないよう、ボタンを押した処理の中で（`await` の前に）開く。
+4. Firestore には何も書かない（担当も変えない。[ADR 0014](../decisions/0014_line_request_by_share_url.md)）。開いたら選択モードを終える。開けなかったら「LINEを開けませんでした」と表示する。

@@ -25,6 +25,9 @@ class ItemsRepository {
   CollectionReference<Map<String, dynamic>> get _categories =>
       _db.collection('categories');
 
+  CollectionReference<Map<String, dynamic>> get _history =>
+      _db.collection('purchaseHistory');
+
   // ---- 読み取り ----
 
   /// カテゴリを表示順に並べて返す
@@ -78,12 +81,14 @@ class ItemsRepository {
     required String categoryId,
     required StockStatus status,
     required String memo,
+    List<String> barcodes = const [],
     required Member actor,
   }) => _items.add({
     'name': name,
     'categoryId': categoryId,
     'status': status.value,
     'memo': memo,
+    'barcodes': barcodes,
     'purchase': null,
     'createdAt': FieldValue.serverTimestamp(),
     ..._updatedFields(actor),
@@ -95,18 +100,28 @@ class ItemsRepository {
     required String categoryId,
     required StockStatus status,
     required String memo,
+    required List<String> barcodes,
     required Member actor,
   }) => _items.doc(itemId).update({
     'name': name,
     'categoryId': categoryId,
     'status': status.value,
     'memo': memo,
+    'barcodes': barcodes,
     // 「十分」に戻したら担当・カゴ済みも解除する
     if (!status.needsBuying) 'purchase': null,
     ..._updatedFields(actor),
   });
 
   Future<void> deleteItem(String itemId) => _items.doc(itemId).delete();
+
+  /// 既存のアイテムにバーコードを追加する。
+  ///
+  /// 在庫の状況は変わらないので、更新者・更新日時は変えない（担当・カゴ済みと同じ）。
+  Future<void> addBarcode(String itemId, String barcode) =>
+      _items.doc(itemId).update({
+        'barcodes': FieldValue.arrayUnion([barcode]),
+      });
 
   Future<void> changeStatus(String itemId, StockStatus status, Member actor) =>
       _items.doc(itemId).update({
@@ -164,17 +179,33 @@ class ItemsRepository {
         : null,
   );
 
-  /// 自分がカゴ済みにしたアイテムをまとめて「十分」に戻す
-  Future<void> completePurchase(List<Item> items, Member actor) {
+  /// 自分がカゴ済みにしたアイテムをまとめて「十分」に戻し、購入履歴に記録する。
+  ///
+  /// 「元に戻す」で記録を消せるよう、アイテム ID → 記録のドキュメント ID を返す。
+  Future<Map<String, String>> completePurchase(
+    List<Item> items,
+    Member actor,
+  ) async {
     final batch = _db.batch();
+    final recordIds = <String, String>{};
     for (final item in items) {
       batch.update(_items.doc(item.id), {
         'status': StockStatus.sufficient.value,
         'purchase': null,
         ..._updatedFields(actor),
       });
+      final record = _history.doc();
+      batch.set(record, {
+        'itemId': item.id,
+        'itemName': item.name,
+        'byUid': actor.uid,
+        'byName': actor.displayName,
+        'purchasedAt': FieldValue.serverTimestamp(),
+      });
+      recordIds[item.id] = record.id;
     }
-    return batch.commit();
+    await batch.commit();
+    return recordIds;
   }
 
   /// 自分が担当しているときだけ purchase を更新する（[change] が null なら何もしない）
@@ -240,8 +271,13 @@ class ItemsRepository {
   /// 購入完了を元に戻し、戻せた件数を返す。
   ///
   /// [before] は購入完了の直前のアイテム（自分のカゴ済み）。自分が「十分」に
-  /// したままのアイテムだけを、元のステータスとカゴ済みに戻す。
-  Future<int> revertPurchase(List<Item> before, Member actor) {
+  /// したままのアイテムだけを、元のステータスとカゴ済みに戻し、そのアイテムの
+  /// 購入履歴の記録（[recordIds] は [completePurchase] が返したもの）を消す。
+  Future<int> revertPurchase(
+    List<Item> before,
+    Member actor, {
+    required Map<String, String> recordIds,
+  }) {
     return _db.runTransaction<int>((tx) async {
       // トランザクションでは、書き込みの前にすべて読み取る
       final snaps = [
@@ -266,6 +302,9 @@ class ItemsRepository {
               : null,
           ..._updatedFields(actor),
         });
+        if (recordIds[old.id] case final recordId?) {
+          tx.delete(_history.doc(recordId));
+        }
         reverted++;
       }
       return reverted;
@@ -318,6 +357,10 @@ class ItemsRepository {
       categoryId: data['categoryId'] as String? ?? Category.otherId,
       status: StockStatus.fromValue(data['status'] as String?),
       memo: data['memo'] as String? ?? '',
+      barcodes: [
+        for (final code in data['barcodes'] as List? ?? const [])
+          if (code is String) code,
+      ],
       purchase: _toPurchase(data['purchase']),
       createdAt: _toDate(data['createdAt']),
       updatedAt: _toDate(data['updatedAt']),

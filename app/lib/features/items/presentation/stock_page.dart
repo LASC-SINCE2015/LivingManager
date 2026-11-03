@@ -5,12 +5,16 @@ import '../../../core/utils/text_normalizer.dart';
 import '../../../shared/widgets/snack_bars.dart';
 import '../../auth/data/member_repository.dart';
 import '../../auth/presentation/auth_providers.dart';
+import '../data/items_repository.dart';
+import '../domain/barcode.dart';
 import '../domain/category.dart';
 import '../domain/item.dart';
 import '../domain/item_order.dart';
 import '../domain/stock_status.dart';
+import 'barcode_scanner.dart';
 import 'item_card.dart';
 import 'item_edit_sheet.dart';
+import 'item_picker_dialog.dart';
 import 'items_providers.dart';
 import 'status_colors.dart';
 import 'status_selector.dart';
@@ -98,6 +102,11 @@ class _StockPageState extends ConsumerState<StockPage> {
                     ),
                   ),
                 IconButton(
+                  tooltip: 'バーコードで探す',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: _scanAndShow,
+                ),
+                IconButton(
                   tooltip: '並べ替え',
                   icon: const Icon(Icons.swap_vert),
                   onPressed: _startReordering,
@@ -164,7 +173,10 @@ class _StockPageState extends ConsumerState<StockPage> {
     );
   }
 
-  /// 検索文字列とカテゴリで絞り込む（両方の条件に合うもの）
+  /// 検索文字列とカテゴリで絞り込む（両方の条件に合うもの）。
+  ///
+  /// 検索文字列は、アイテム名・メモのどちらかに含まれるか、登録したバーコードの
+  /// 番号と同じなら合う（バーコードで探したときは、検索欄にその番号を入れる）。
   List<Item> _filter(
     List<Category> categories,
     List<Item> items,
@@ -178,9 +190,98 @@ class _StockPageState extends ConsumerState<StockPage> {
                 categoryKeyOf(item, knownIds) == categoryId) &&
             (query.isEmpty ||
                 normalizeForCompare(item.name).contains(query) ||
-                normalizeForCompare(item.memo).contains(query)))
+                normalizeForCompare(item.memo).contains(query) ||
+                item.barcodes.contains(query)))
           item,
     ];
+  }
+
+  /// バーコードを読み取り、登録されているアイテムを一覧に表示する。
+  /// 登録されていなければ、新しく追加するか、既存のアイテムに登録するかを選ぶ
+  Future<void> _scanAndShow() async {
+    final code = await scanBarcode(context);
+    if (code == null || !mounted) return;
+    final items = ref.read(itemsProvider).value ?? const <Item>[];
+    if (findItemByBarcode(items, code) != null) {
+      _showBarcode(code);
+      return;
+    }
+
+    final choice = await showDialog<_UnknownBarcodeChoice>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('登録されていないバーコードです'),
+        content: Text('$code\n\nどのアイテムのバーコードか登録してください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, _UnknownBarcodeChoice.existing),
+            child: const Text('既存のアイテムに登録'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _UnknownBarcodeChoice.add),
+            child: const Text('新しく追加'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case _UnknownBarcodeChoice.add:
+        await showItemEditSheet(
+          context,
+          initialCategoryId: _filterCategoryId,
+          initialBarcode: code,
+        );
+      case _UnknownBarcodeChoice.existing:
+        await _addBarcodeToExisting(code);
+      case null:
+        break;
+    }
+  }
+
+  /// 選んだ既存のアイテムにバーコードを登録し、そのアイテムを表示する
+  Future<void> _addBarcodeToExisting(String code) async {
+    final items = ref.read(itemsProvider).value ?? const <Item>[];
+    final item = await showItemPickerDialog(
+      context,
+      title: 'バーコードを登録するアイテム',
+      items: items,
+    );
+    if (item == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (item.barcodes.length >= maxBarcodesPerItem) {
+      showMessage(messenger, 'バーコードは$maxBarcodesPerItem個まで登録できます');
+      return;
+    }
+    // 選んでいる間に、ほかの人が同じバーコードを登録していたら登録しない
+    final latest = ref.read(itemsProvider).value ?? const <Item>[];
+    final other = findItemByBarcode(latest, code, exceptItemId: item.id);
+    if (other != null) {
+      showMessage(messenger, 'このバーコードは『${other.name}』に登録されています');
+      return;
+    }
+    final saved = await runWithErrorMessage(context, () async {
+      await ref.read(itemsRepositoryProvider).addBarcode(item.id, code);
+      return true;
+    });
+    if (saved != true || !mounted) return;
+    showMessage(messenger, '『${item.name}』にバーコードを登録しました');
+    _showBarcode(code);
+  }
+
+  /// バーコードの番号で検索した状態にする（カテゴリの絞り込みは解除する）
+  void _showBarcode(String code) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _searchController.text = code;
+      _query = code;
+      _filterCategoryId = null;
+    });
   }
 
   /// 並べ替えモードにする（検索・絞り込みは解除する）
@@ -238,6 +339,9 @@ class _StockPageState extends ConsumerState<StockPage> {
     }
   }
 }
+
+/// 登録されていないバーコードを読み取ったときの選択
+enum _UnknownBarcodeChoice { add, existing }
 
 /// アイテムが入るカテゴリ（カテゴリが見つからないアイテムは「その他」）
 String categoryKeyOf(Item item, Set<String> knownIds) =>

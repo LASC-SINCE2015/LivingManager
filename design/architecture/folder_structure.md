@@ -15,6 +15,7 @@
 （リポジトリ直下）
 ├─ README.md
 ├─ .gitignore
+├─ .github/workflows/           … GitHub Actions（develop・master へのマージで自動デプロイ。deploy.yml）
 ├─ spec/                        … 仕様書（何を作るか）
 ├─ design/                      … 設計書（どう作るか）。用途別のフォルダに分ける（design/README.md）
 ├─ testing/                     … 確認内容と確認結果の記録
@@ -50,8 +51,9 @@ app/
 │  ├─ features/                 … 機能ごとのフォルダ
 │  │  ├─ auth/                  …   ログイン・利用許可の判定・家族メンバー（表示名・自分の並び順）
 │  │  ├─ items/                 …   在庫一覧（検索・絞り込み・並べ替え）・アイテム/カテゴリの読み書き・
-│  │  │                             担当/カゴ済み・元に戻す・オフライン判定
-│  │  ├─ shopping_list/         …   買い物リスト（items の data / domain を使う）
+│  │  │                             担当/カゴ済み・元に戻す・オフライン判定・バーコードの読み取り
+│  │  ├─ shopping_list/         …   買い物リスト・LINE で頼む（items の data / domain を使う）
+│  │  ├─ history/               …   購入履歴の一覧・アイテムごとの履歴・期限切れの記録の削除
 │  │  ├─ settings/              …   設定（表示名・カテゴリ管理・各ページへの導線・ログアウト・バージョン表示）
 │  │  ├─ feedback/              …   改善意見の送信・開発者用の一覧（状態・メモの管理）
 │  │  └─ users/                 …   管理者への追加の依頼・開発者用のユーザー管理（依頼の承認・却下、許可済みの一覧）
@@ -89,6 +91,7 @@ app/
 
 - `lib/firebase_options.dart` は `String.fromEnvironment` で値を読むだけなので、リポジトリに含めてよい。
 - 本番とテスト環境は別の Firebase プロジェクトにし、設定ファイルも環境ごとに分ける（[0011](../decisions/0011_separate_dev_project.md)）。設定ファイルの `APP_ENV`（`prod` / `dev`）で、アプリにテスト環境の表示を出すかが決まる。
+- 自動デプロイ（GitHub Actions）では、設定ファイルの中身とデプロイ用の鍵を GitHub の Environments の Secrets に置き、実行時にファイルに書き出して使う（[0015](../decisions/0015_auto_deploy_with_github_actions.md)）。
 - 補足: Web の設定値はビルド後の JS に含まれ、ブラウザから見える。厳密な秘密ではないが、方針としてリポジトリには置かない。実際の保護は Firestore ルールと Authentication で行う。
 
 ## Firestore ルールのテスト

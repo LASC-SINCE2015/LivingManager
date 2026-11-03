@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/relative_time.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -10,92 +11,198 @@ import '../../items/data/items_repository.dart';
 import '../../items/domain/category.dart';
 import '../../items/domain/claim_result.dart';
 import '../../items/domain/item.dart';
-import '../../items/domain/item_order.dart';
 import '../../items/domain/stock_status.dart';
 import '../../items/presentation/item_actions.dart';
 import '../../items/presentation/item_edit_sheet.dart';
 import '../../items/presentation/items_providers.dart';
 import '../../items/presentation/status_colors.dart';
+import '../domain/line_request.dart';
+import '../domain/shopping_order.dart';
 
 /// 買い物リスト画面（タブ2）
-class ShoppingListPage extends ConsumerWidget {
+class ShoppingListPage extends ConsumerStatefulWidget {
   const ShoppingListPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShoppingListPage> createState() => _ShoppingListPageState();
+}
+
+class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
+  /// LINE で頼むものを選んでいる（選択モード）か
+  bool _selecting = false;
+
+  /// 選択モードで選んでいるアイテムの ID
+  final Set<String> _selected = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ほかのタブに切り替えたら（このタブが非表示になったら）通常の表示に戻す
+    if (_selecting && !TickerMode.valuesOf(context).enabled) {
+      _selecting = false;
+      _selected.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final categories = ref.watch(categoriesProvider);
     final items = ref.watch(itemsProvider);
     final actor = ref.watch(actorProvider);
     final myOrder = ref.watch(myItemOrderProvider).value ?? const {};
 
+    final ordered = switch ((categories.value, items.value, actor)) {
+      (final List<Category> cats, final List<Item> list, final Member me) =>
+        orderShoppingItems(cats, list, me, myOrder),
+      _ => null,
+    };
     final myCartItems = [
-      for (final item in items.value ?? const <Item>[])
-        if (item.status.needsBuying &&
-            item.purchase?.isInCart == true &&
+      for (final item in ordered ?? const <Item>[])
+        if (item.purchase?.isInCart == true &&
             item.purchase?.byUid == actor?.uid)
           item,
     ];
+    // 選んだあとに買い物リストから外れたもの・カゴに入ったものは除く
+    final selectedItems = [
+      for (final item in ordered ?? const <Item>[])
+        if (_selected.contains(item.id) && isSelectableForRequest(item)) item,
+    ];
+    final selectable = (ordered ?? const <Item>[])
+        .where(isSelectableForRequest)
+        .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('買い物リスト')),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'アイテムを追加',
-        onPressed: () =>
-            showItemEditSheet(context, initialStatus: StockStatus.empty),
-        child: const Icon(Icons.add),
-      ),
+      appBar: _selecting
+          ? AppBar(
+              leading: IconButton(
+                tooltip: 'やめる',
+                icon: const Icon(Icons.close),
+                onPressed: _endSelecting,
+              ),
+              title: Text('頼むものを選ぶ（${selectedItems.length}件）'),
+              actions: [
+                TextButton(
+                  onPressed: selectable.isEmpty
+                      ? null
+                      : () => setState(() {
+                          if (selectedItems.length == selectable.length) {
+                            _selected.clear();
+                          } else {
+                            _selected.addAll(selectable.map((item) => item.id));
+                          }
+                        }),
+                  child: Text(
+                    selectable.isNotEmpty &&
+                            selectedItems.length == selectable.length
+                        ? 'すべて解除'
+                        : 'すべて選択',
+                  ),
+                ),
+              ],
+            )
+          : AppBar(
+              title: const Text('買い物リスト'),
+              actions: [
+                IconButton(
+                  tooltip: 'LINEで頼む',
+                  icon: const Icon(Icons.forward_to_inbox_outlined),
+                  onPressed: selectable.isEmpty
+                      ? null
+                      : () => setState(() => _selecting = true),
+                ),
+              ],
+            ),
+      floatingActionButton: _selecting
+          ? null
+          : FloatingActionButton(
+              tooltip: 'アイテムを追加',
+              onPressed: () =>
+                  showItemEditSheet(context, initialStatus: StockStatus.empty),
+              child: const Icon(Icons.add),
+            ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: FilledButton.icon(
-            onPressed: myCartItems.isEmpty || actor == null
-                ? null
-                : () => _completePurchase(context, ref, myCartItems, actor),
-            icon: const Icon(Icons.done_all),
-            label: Text('購入完了（${myCartItems.length}件）'),
-          ),
+          child: _selecting
+              ? FilledButton.icon(
+                  onPressed: selectedItems.isEmpty
+                      ? null
+                      : () => _sendToLine(selectedItems),
+                  icon: const Icon(Icons.send),
+                  label: Text('LINEで送る（${selectedItems.length}件）'),
+                )
+              : FilledButton.icon(
+                  onPressed: myCartItems.isEmpty || actor == null
+                      ? null
+                      : () => _completePurchase(myCartItems, actor),
+                  icon: const Icon(Icons.done_all),
+                  label: Text('購入完了（${myCartItems.length}件）'),
+                ),
         ),
       ),
-      body: switch ((categories.value, items.value, actor)) {
+      body: switch ((categories.value, ordered, actor)) {
         _ when categories.hasError || items.hasError => const Center(
           child: Text('読み込めませんでした。通信状態を確認してください'),
         ),
-        (
-          final List<Category> cats,
-          final List<Item> list,
-          final Member me,
-        ) =>
+        (final List<Category> cats, final List<Item> list, final Member me) =>
           _ShoppingList(
             categories: cats,
-            items: list,
+            ordered: list,
             me: me,
-            myOrder: myOrder,
+            selecting: _selecting,
+            selected: _selected,
+            onSelectChanged: (item, selected) => setState(
+              () =>
+                  selected ? _selected.add(item.id) : _selected.remove(item.id),
+            ),
           ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
   }
 
-  Future<void> _completePurchase(
-    BuildContext context,
-    WidgetRef ref,
-    List<Item> items,
-    Member actor,
-  ) async {
+  void _endSelecting() => setState(() {
+    _selecting = false;
+    _selected.clear();
+  });
+
+  /// 選んだアイテムを頼む文面で、LINE の送信先選択を開く
+  Future<void> _sendToLine(List<Item> items) async {
+    final messenger = ScaffoldMessenger.of(context);
+    // ボタンを押した操作の中で開く必要がある（ブラウザがポップアップを止めないように）ので、
+    // ここより前で await しない
+    final opened = launchUrl(
+      lineShareUri(buildLineRequestText(items)),
+      webOnlyWindowName: '_blank',
+    );
+    _endSelecting();
+    try {
+      if (await opened) return;
+    } catch (_) {
+      // 下でまとめて知らせる
+    }
+    showMessage(messenger, 'LINEを開けませんでした');
+  }
+
+  Future<void> _completePurchase(List<Item> items, Member actor) async {
     final messenger = ScaffoldMessenger.of(context);
     final repository = ref.read(itemsRepositoryProvider);
-    final result = await runWithErrorMessage(context, () async {
-      await repository.completePurchase(items, actor);
-      return true;
-    });
-    if (result != true) return;
+    final recordIds = await runWithErrorMessage(
+      context,
+      () => repository.completePurchase(items, actor),
+    );
+    if (recordIds == null) return;
 
     showUndoMessage(
       messenger,
       '${items.length}件を購入完了にしました',
       onUndo: () async {
         try {
-          final reverted = await repository.revertPurchase(items, actor);
+          final reverted = await repository.revertPurchase(
+            items,
+            actor,
+            recordIds: recordIds,
+          );
           if (reverted == items.length) return;
           showMessage(
             messenger,
@@ -114,65 +221,37 @@ class ShoppingListPage extends ConsumerWidget {
 class _ShoppingList extends StatelessWidget {
   const _ShoppingList({
     required this.categories,
-    required this.items,
+    required this.ordered,
     required this.me,
-    required this.myOrder,
+    required this.selecting,
+    required this.selected,
+    required this.onSelectChanged,
   });
 
   final List<Category> categories;
-  final List<Item> items;
+
+  /// 表示する順に並べたアイテム（[orderShoppingItems]）
+  final List<Item> ordered;
   final Member me;
 
-  /// 自分の並び順（カテゴリ ID → アイテム ID の配列）
-  final Map<String, List<String>> myOrder;
-
-  /// ほかの人がカゴに入れたアイテムか（薄く表示して末尾に置く）
-  bool _isOthersCart(Item item) =>
-      item.purchase?.isInCart == true && item.purchase?.byUid != me.uid;
+  /// LINE で頼むものを選んでいるか
+  final bool selecting;
+  final Set<String> selected;
+  final void Function(Item item, bool selected) onSelectChanged;
 
   @override
   Widget build(BuildContext context) {
-    final targets = items.where((item) => item.status.needsBuying).toList();
-    if (targets.isEmpty) {
+    if (ordered.isEmpty) {
       return const Center(child: Text('買う必要のあるものはありません 🎉'));
     }
 
-    final orderOf = {for (final c in categories) c.id: c.order};
     final nameOf = {for (final c in categories) c.id: c.name};
-    // カテゴリが見つからないアイテムは「その他」として扱う（在庫一覧と同じ）
-    String categoryOf(Item item) => orderOf.containsKey(item.categoryId)
-        ? item.categoryId
-        : Category.otherId;
-
-    // カテゴリごとに、自分の並び順での位置を求めておく
-    final byCategory = <String, List<Item>>{};
-    for (final item in targets) {
-      byCategory.putIfAbsent(categoryOf(item), () => []).add(item);
-    }
-    final positionOf = <String, int>{
-      for (final MapEntry(key: categoryId, value: list) in byCategory.entries)
-        for (final (index, item)
-            in sortByMyOrder(list, myOrder[categoryId]).indexed)
-          item.id: index,
-    };
-
-    int compare(Item a, Item b) {
-      final cart = (_isOthersCart(a) ? 1 : 0) - (_isOthersCart(b) ? 1 : 0);
-      if (cart != 0) return cart;
-      final order = (orderOf[categoryOf(a)] ?? 0).compareTo(
-        orderOf[categoryOf(b)] ?? 0,
-      );
-      if (order != 0) return order;
-      return positionOf[a.id]!.compareTo(positionOf[b.id]!);
-    }
-
-    final sections = [StockStatus.empty, StockStatus.low];
     final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
       children: [
-        for (final status in sections)
-          if (targets.any((item) => item.status == status)) ...[
+        for (final status in shoppingSections)
+          if (ordered.any((item) => item.status == status)) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
               child: Row(
@@ -188,15 +267,16 @@ class _ShoppingList extends StatelessWidget {
                 ],
               ),
             ),
-            for (final item
-                in targets.where((item) => item.status == status).toList()
-                  ..sort(compare))
+            for (final item in ordered.where((item) => item.status == status))
               _ShoppingTile(
                 key: ValueKey(item.id),
                 item: item,
                 categoryName:
                     nameOf[item.categoryId] ?? nameOf[Category.otherId] ?? '',
                 me: me,
+                selecting: selecting,
+                selected: selected.contains(item.id),
+                onSelectChanged: (value) => onSelectChanged(item, value),
               ),
           ],
       ],
@@ -211,11 +291,19 @@ class _ShoppingTile extends ConsumerWidget {
     required this.item,
     required this.categoryName,
     required this.me,
+    required this.selecting,
+    required this.selected,
+    required this.onSelectChanged,
   });
 
   final Item item;
   final String categoryName;
   final Member me;
+
+  /// LINE で頼むものを選んでいるか（チェックボックスは選択に使い、担当の操作は出さない）
+  final bool selecting;
+  final bool selected;
+  final ValueChanged<bool> onSelectChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -227,58 +315,75 @@ class _ShoppingTile extends ConsumerWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
+    final selectable = isSelectableForRequest(item);
     return Opacity(
-      opacity: othersCart ? 0.5 : 1,
+      opacity: othersCart || (selecting && !selectable) ? 0.5 : 1,
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: purchase?.isInCart ?? false,
-                onChanged: othersCart
-                    ? null
-                    : (checked) => checked == true
-                          ? _claim(context, ref, toCart: true)
-                          : _uncheck(context, ref),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.name, style: theme.textTheme.titleMedium),
-                      if (item.memo.isNotEmpty)
-                        Text(item.memo, style: theme.textTheme.bodyMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$categoryName・${item.updatedByName}・'
-                        '${formatRelativeTime(item.updatedAt)} '
-                        '${item.status.label}に変更',
-                        style: mutedStyle,
-                      ),
-                      if (purchase != null)
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: selecting && selectable
+              ? () => onSelectChanged(!selected)
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (selecting)
+                  Checkbox(
+                    value: selected,
+                    onChanged: selectable
+                        ? (checked) => onSelectChanged(checked == true)
+                        : null,
+                  )
+                else
+                  Checkbox(
+                    value: purchase?.isInCart ?? false,
+                    onChanged: othersCart
+                        ? null
+                        : (checked) => checked == true
+                              ? _claim(context, ref, toCart: true)
+                              : _uncheck(context, ref),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.name, style: theme.textTheme.titleMedium),
+                        if (item.memo.isNotEmpty)
+                          Text(item.memo, style: theme.textTheme.bodyMedium),
+                        const SizedBox(height: 4),
                         Text(
-                          purchaseLabel(purchase, myUid: me.uid) +
-                              (purchase.isStale(DateTime.now())
-                                  ? '（1日以上前）'
-                                  : ''),
-                          style: purchase.isStale(DateTime.now())
-                              ? mutedStyle
-                              : theme.textTheme.bodySmall,
+                          '$categoryName・${item.updatedByName}・'
+                          '${formatRelativeTime(item.updatedAt)} '
+                          '${item.status.label}に変更',
+                          style: mutedStyle,
                         ),
-                    ],
+                        if (purchase != null)
+                          Text(
+                            purchaseLabel(purchase, myUid: me.uid) +
+                                (purchase.isStale(DateTime.now())
+                                    ? '（1日以上前）'
+                                    : ''),
+                            style: purchase.isStale(DateTime.now())
+                                ? mutedStyle
+                                : theme.textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: _actionButton(context, ref, purchase, isMine),
-              ),
-            ],
+                if (!selecting) ...[
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _actionButton(context, ref, purchase, isMine),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -332,12 +437,7 @@ class _ShoppingTile extends ConsumerWidget {
       context,
       () => ref
           .read(itemsRepositoryProvider)
-          .claim(
-            item.id,
-            me,
-            toCart: toCart,
-            takeOverFromUid: takeOverFromUid,
-          ),
+          .claim(item.id, me, toCart: toCart, takeOverFromUid: takeOverFromUid),
     );
     switch (result) {
       case ClaimConflicted(:final holderName):

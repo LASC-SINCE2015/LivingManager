@@ -31,6 +31,8 @@ items 機能の中で共通に使うもの（`features/items/presentation/`）:
 | `status_colors.dart` | ステータスの色（十分=緑・残りわずか=黄・切れてる=赤）、薄い背景の上の文字色、アイコン（十分=`check_circle_rounded`・残りわずか=`hourglass_bottom_rounded`・切れてる=`cancel_rounded`） |
 | `item_actions.dart` | `changeItemStatus`（「十分」にするとき、ほかの人の担当があれば確認。保存後に「元に戻す」付きのメッセージを出す）、`deleteItemWithConfirm`、`purchaseLabel`（「🛒 〇〇が買う予定」などの文） |
 | `item_edit_sheet.dart` | `showItemEditSheet` / `ItemEditSheet`: 追加・編集のボトムシート |
+| `barcode_scanner.dart` | `scanBarcode` / `BarcodeScannerPage`: カメラでバーコードを読み取る全画面のダイアログ（`mobile_scanner`）。読み取った番号を `normalizeBarcode` でそろえて返す。「番号を入力」で手入力もできる |
+| `item_picker_dialog.dart` | `showItemPickerDialog`: アイテムを名前で絞り込んで 1 つ選ぶダイアログ（読み取ったバーコードを既存のアイテムに登録するときに使う） |
 
 ## 3. 画面ごとの構成
 
@@ -42,7 +44,7 @@ items 機能の中で共通に使うもの（`features/items/presentation/`）:
 
 ```
 Scaffold
-├─ AppBar「在庫一覧」＋ _ToggleAllButton（すべて開く / すべて閉じる）＋「並べ替え」ボタン（Icons.swap_vert）
+├─ AppBar「在庫一覧」＋ _ToggleAllButton（すべて開く / すべて閉じる）＋「バーコードで探す」ボタン（Icons.qr_code_scanner）＋「並べ替え」ボタン（Icons.swap_vert）
 ├─ body: Column
 │  ├─ _SearchArea
 │  │  ├─ 検索欄（TextField。入力中は ✕ で消せる）
@@ -55,7 +57,10 @@ Scaffold
 └─ FloatingActionButton（＋）→ showItemEditSheet（選択中のカテゴリを初期値に）
 ```
 
-- 検索: アイテム名とメモを `normalizeForCompare` して部分一致。空白だけの入力は検索なしとして扱う。カテゴリフィルターと同時に使うと、両方に合うものだけを出す。
+- 検索: アイテム名とメモを `normalizeForCompare` して部分一致。加えて、入力がバーコードの番号と等しいアイテムも出す。空白だけの入力は検索なしとして扱う。カテゴリフィルターと同時に使うと、両方に合うものだけを出す。
+- バーコードで探す（`_scanAndShow`）: `scanBarcode` で読み取り、登録されているアイテムがあれば `_showBarcode` で検索欄にその番号を入れる（カテゴリの絞り込みは解除する）。なければダイアログ「登録されていないバーコードです」（キャンセル / 既存のアイテムに登録 / 新しく追加）を出す。
+  - 新しく追加: `showItemEditSheet(initialBarcode: 番号)`。
+  - 既存のアイテムに登録: `showItemPickerDialog` で選び、上限（10 個）とほかのアイテムとの重複を確かめてから `ItemsRepository.addBarcode`。成功したら「『〇〇』にバーコードを登録しました」と表示し、番号で検索した状態にする。
 - 検索・絞り込み中は 0 件のカテゴリを出さず、結果が 0 件なら「該当するアイテムがありません」。検索・絞り込みをしていないときは、0 件のカテゴリも見出しを出す。アイテムが 1 件もないときは案内文だけを表示する。
 - アイテムはカテゴリの中で自分の並び順に並べる。ステータスが変わっても位置は動かない。
 - `ItemCard`: 横 1 行のカード。左端にステータスの色の帯、名前（1 行で省略）、メモ（1 行で省略）、「更新者・日時」、担当・カゴ済みがあればその文。右側に `StatusIconSelector` と︙メニュー（編集・削除）。
@@ -87,15 +92,20 @@ Scaffold
   - カテゴリ: `DropdownButtonFormField`。末尾の「＋ カテゴリ追加」で `showTextInputDialog` を開き、追加したカテゴリを選んだ状態にする。キャンセルしたら選択を元に戻す（`key` を変えて作り直す）。
   - ステータス: `StatusSelector`。
   - メモ: 200 文字まで、2〜5 行。
+  - バーコード: 登録した番号の `InputChip`（✕ で外す）と `ActionChip`「読み取って追加」（`scanBarcode`）。すでに登録している・10 個を超える・ほかのアイテムに登録済みなら、追加せずにシートの中にエラーを表示する（シートの下の SnackBar は見えないため）。
+  - 購入履歴（編集のときだけ）: `ItemHistorySection`（`history/presentation/`）。`itemHistoryProvider(アイテム ID)` を購読し、「N回購入」と新しい順に 5 件（「・2026年10月20日（火） お母さん」）、それ以上は「ほかN件」。記録がなければ「まだ記録がありません（購入完了にすると記録されます）」。
 - 保存時、選んでいたカテゴリがほかの人に削除されていたら「その他」にする。
+- 保存時、編集中にほかの人が同じバーコードを別のアイテムに登録していたら、保存せずにエラーを表示する。
 - 編集中にほかの人がアイテムを削除したら、シートを閉じて「このアイテムは削除されました」と表示する。
-- 初期値: カテゴリは「その他」（呼び出し元が指定した場合はそのカテゴリ。在庫一覧ではカテゴリフィルターで選んでいるカテゴリ）、ステータスは「十分」（買い物リストから開いたときは「切れてる」）。
+- 初期値: カテゴリは「その他」（呼び出し元が指定した場合はそのカテゴリ。在庫一覧ではカテゴリフィルターで選んでいるカテゴリ）、ステータスは「十分」（買い物リストから開いたときは「切れてる」）、バーコードはなし（読み取ったバーコードから追加するときはその番号）。
 
 ### 買い物リスト（`ShoppingListPage`）
 
+`ShoppingListPage` は `ConsumerStatefulWidget`。選択モードかどうかと、選んでいるアイテムの ID を状態として持つ。
+
 ```
 Scaffold
-├─ AppBar「買い物リスト」
+├─ AppBar「買い物リスト」＋「LINEで頼む」ボタン（Icons.forward_to_inbox_outlined）
 ├─ body: _ShoppingList（ListView）
 │  ├─ 見出し「● 切れてる」 → _ShoppingTile × 件数
 │  └─ 見出し「● 残りわずか」 → _ShoppingTile × 件数
@@ -103,7 +113,20 @@ Scaffold
 └─ bottomNavigationBar: 「購入完了（N件）」ボタン
 ```
 
-- 並び順（各セクション内）: ① ほかの人がカゴ済みのものを末尾に、② カテゴリの `order` 順、③ 同じカテゴリ内は自分の並び順。買い物リストでは並べ替えできない。
+- 並び順は `orderShoppingItems`（`shopping_list/domain/shopping_order.dart`）で決める。「切れてる」→「残りわずか」の順で、各セクション内は ① ほかの人がカゴ済みのものを末尾に、② カテゴリの `order` 順、③ 同じカテゴリ内は自分の並び順。買い物リストでは並べ替えできない。
+
+選択モード（「LINEで頼む」で切り替え。選べるものがないときは押せない）:
+
+```
+Scaffold
+├─ AppBar ✕（やめる）・「頼むものを選ぶ（N件）」＋「すべて選択 / すべて解除」
+├─ body: _ShoppingList（チェックボックスは選択用。担当の操作ボタンは出さない。行を押しても選べる）
+└─ bottomNavigationBar: 「LINEで送る（N件）」ボタン（0 件なら押せない）
+```
+
+- 誰かがカゴに入れたアイテムは選べない（`isSelectableForRequest`。行を 50% の薄さで表示する）。＋ボタンは出さない。
+- 「LINEで送る」: 選んだアイテムを表示順のまま `buildLineRequestText` で文面にし、`launchUrl(lineShareUri(文面), webOnlyWindowName: '_blank')` で開く。ブラウザにポップアップとして止められないよう、開く前に `await` しない。開いたら選択モードを終え、開けなかったら「LINEを開けませんでした」と表示する。
+- ほかのタブに切り替えたら選択モードを終える（在庫一覧の並べ替えモードと同じく `TickerMode` で検知する）。選んだ後に買い物リストから外れた・カゴに入ったアイテムは、送る対象から除く。
 - `_ShoppingTile`: チェックボックス、名前、メモ（全文）、「カテゴリ・更新者・日時 ステータスに変更」、担当・カゴ済みの文（24 時間以上前なら「（1日以上前）」を付けて薄く表示）、操作ボタン。
 - 操作ボタン:
 
@@ -115,12 +138,12 @@ Scaffold
 | 自分のカゴ済み | なし | 外せる（担当中に戻る） |
 | ほかの人のカゴ済み | なし | 押せない（行全体を 50% の薄さで表示） |
 
-- 「購入完了」: 自分のカゴ済みが 0 件なら押せない。押すと確認なしで一括更新し、`showUndoMessage`「N件を購入完了にしました [元に戻す]」を出す。元に戻したときに一部しか戻せなかった場合は「ほかの人が変更したため、N件は戻せませんでした」と表示する。
+- 「購入完了」: 自分のカゴ済みが 0 件なら押せない。押すと確認なしで一括更新（購入履歴の追加を含む）し、`showUndoMessage`「N件を購入完了にしました [元に戻す]」を出す。元に戻したときに一部しか戻せなかった場合は「ほかの人が変更したため、N件は戻せませんでした」と表示する。
 - 処理の流れは [sequences/shopping.md](../sequences/shopping.md) を参照。
 
 ### 設定（`SettingsPage`）
 
-- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、改善意見を送る（`/settings/feedback` へ移動）、改善意見の一覧（開発者用。`isDeveloperProvider` が true のときだけ表示し、`/feedback` へ移動）、ユーザー管理（開発者用。同じく開発者のときだけ表示し、`/users` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
+- `ListTile` の一覧: 表示名（タップで `showTextInputDialog`、20 文字まで）、ログイン中のアカウントのメールアドレス、カテゴリ管理（`/settings/categories` へ移動）、購入履歴（`/settings/history` へ移動）、改善意見を送る（`/settings/feedback` へ移動）、改善意見の一覧（開発者用。`isDeveloperProvider` が true のときだけ表示し、`/feedback` へ移動）、ユーザー管理（開発者用。同じく開発者のときだけ表示し、`/users` へ移動）、ログアウト（確認あり）、バージョン（`appVersionProvider`。`version+buildNumber` の形）。
 
 ### カテゴリ管理（`CategoriesPage`）
 
@@ -139,6 +162,21 @@ Scaffold
 - 並べ替え: `onReorderItem` で、移動先を「その他」より上に制限する。並べ終えたら `CategoriesRepository.reorder` で order を 1 から振り直す。
 - 削除: 確認ダイアログ「『〇〇』を削除しますか？ このカテゴリのアイテム N 件は『その他』に移動します」のあと、`CategoriesRepository.delete`。
 - 所属アイテム数は、存在しないカテゴリに属するアイテムを「その他」に数える（在庫一覧の表示に合わせる）。
+
+### 購入履歴（`HistoryPage`）
+
+```
+Scaffold
+├─ AppBar「購入履歴」
+└─ body: ListView
+   ├─ 検索欄（アイテム名で絞り込む。normalizeForCompare で部分一致）
+   ├─ 説明文「購入完了にした記録です。1年を過ぎた記録は自動で消えます。」
+   └─ Card(ListTile) × 件数（新しい順。アイテム名・「2026年10月20日（火）・お母さん」）
+```
+
+- `allHistoryProvider`（`autoDispose`）を購読する。この画面を開いている間だけ読み込む。
+- 0 件なら「まだ記録がありません」、検索で 0 件なら「該当する記録がありません」。
+- 日付は `formatPurchaseDate`（`history/domain/history_rules.dart`。保存中で未確定なら「たった今」）。
 
 ### 改善意見を送る（`SendFeedbackPage`）
 

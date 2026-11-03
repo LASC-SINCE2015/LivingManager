@@ -10,7 +10,7 @@
 
 ## deploy.ps1
 
-`flutter build web` と `firebase deploy` をまとめて実行します。デプロイ先のプロジェクトは、ビルドに使う設定ファイルの `FIREBASE_PROJECT_ID` から決めるので、テスト環境の設定のまま本番にデプロイする、といった取り違えが起きません。設定ファイルの `APP_ENV` が `prod`（本番）のときは、実行前に確認を求めます。
+`flutter build web` と `firebase deploy` をまとめて手元から実行します（`develop`・`master` は [自動デプロイ](#自動デプロイgithub-actions) で出るので、主に機能ブランチをテスト環境で試すときに使います）。デプロイ先のプロジェクトは、ビルドに使う設定ファイルの `FIREBASE_PROJECT_ID` から決めるので、テスト環境の設定のまま本番にデプロイする、といった取り違えが起きません。設定ファイルの `APP_ENV` が `prod`（本番）のときは、実行前に確認を求めます。
 
 ### 必要なもの
 
@@ -30,6 +30,43 @@
 ```powershell
 ./tools/deploy.ps1 -EnvFile <本番の設定ファイルのパス> -Yes
 ```
+
+## 自動デプロイ（GitHub Actions）
+
+ふだんのデプロイは GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が自動で行います。`deploy.ps1` は、機能ブランチをテスト環境で試すときや、自動デプロイが使えないときに使います。
+
+| ブランチへの push（マージ） | デプロイ先 | 使う Environment |
+|---|---|---|
+| `develop` | テスト環境 | `dev` |
+| `master` | 本番 | `prod` |
+
+- 手順は `deploy.ps1` と同じです（ビルド → Firestore のルール・インデックス → Hosting）。
+- Secrets の設定ファイルの `APP_ENV` がブランチと合わない（`develop` なのに `prod` など）ときや、鍵のプロジェクトが設定ファイルの `FIREBASE_PROJECT_ID` と違うときは、デプロイせずに失敗します。
+- 失敗したときは、リポジトリの「Actions」→「デプロイ」→ 失敗した実行 →「Re-run jobs」で実行し直せます。「Run workflow」で `develop` か `master` を選んで手で実行することもできます。
+
+### 用意するもの（環境ごとに 1 回）
+
+1. **デプロイ用のサービスアカウントと鍵**（Google Cloud コンソールの「IAM と管理」→「サービス アカウント」）
+   - 名前の例: `github-deploy`
+   - ロール: 「Firebase 管理者」と「Service Usage ユーザー」
+   - 「鍵」タブで JSON の鍵を作る。鍵のファイルは Secrets に登録したら手元から消す。
+2. **GitHub の Environment**（リポジトリの「Settings」→「Environments」）
+   - `dev`: 「Deployment branches and tags」を「Selected branches and tags」にし、`develop` だけを許可する。
+   - `prod`: 同じく `master` だけを許可する。本番に出す前に承認を挟みたいときは「Required reviewers」に承認する人を入れる。
+   - ブランチを絞っておくと、ほかのブランチのワークフローからは Secrets を読めない。
+3. **Environment の Secrets**（各 Environment の「Environment secrets」）
+
+   | 名前 | 中身 |
+   |---|---|
+   | `FIREBASE_ENV_JSON` | その環境の設定ファイル（`app/firebase_env.example.json` と同じ形式）の中身 |
+   | `FIREBASE_SERVICE_ACCOUNT` | 1 で作った鍵（JSON）の中身 |
+
+   GitHub CLI を使う場合（リポジトリ直下で）:
+
+   ```powershell
+   Get-Content <設定ファイルのパス> -Raw | gh secret set FIREBASE_ENV_JSON --env dev
+   Get-Content <鍵のファイルのパス> -Raw | gh secret set FIREBASE_SERVICE_ACCOUNT --env dev
+   ```
 
 ## render_diagrams.ps1
 
