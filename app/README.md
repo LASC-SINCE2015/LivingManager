@@ -40,6 +40,9 @@ flutter build web --dart-define-from-file=<設定ファイルのパス>
 # 本番へ（実行前に確認を求めます）
 ./tools/deploy.ps1 -EnvFile <本番の設定ファイルのパス>
 
+# 本番へ（対話できない環境で、確認を省くとき）
+./tools/deploy.ps1 -EnvFile <本番の設定ファイルのパス> -Yes
+
 # Hosting だけ・ルールだけをデプロイするとき
 ./tools/deploy.ps1 -EnvFile <設定ファイルのパス> -Only hosting
 ./tools/deploy.ps1 -EnvFile <設定ファイルのパス> -Only firestore
