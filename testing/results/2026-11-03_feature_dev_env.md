@@ -48,4 +48,4 @@
 ## 見つかった問題
 
 - `tools/deploy.ps1` を Windows PowerShell 5.1 で `2>&1` つきで実行すると、flutter が標準エラーに出す案内文でスクリプトが止まった。→ 外部コマンドの成否を終了コードで判定するように直した（#14 に含む）。
-- 本番へのデプロイの確認（`Read-Host`）は、対話できない環境（自動実行など）では使えず止まる。今回の本番デプロイは、スクリプトと同じ `flutter build web` と `firebase deploy --project <プロジェクトID>` を手で実行した。→ 未対応（必要なら確認を省くオプションの追加を検討する）。
+- 本番へのデプロイの確認（`Read-Host`）は、対話できない環境（自動実行など）では使えず止まる。今回の本番デプロイは、スクリプトと同じ `flutter build web` と `firebase deploy --project <プロジェクトID>` を手で実行した。→ 確認を省く `-Yes` オプションを追加した（feature_deploy_yes）。
