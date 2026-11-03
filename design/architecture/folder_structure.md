@@ -31,7 +31,7 @@ app/
 ├─ pubspec.yaml                 … 依存パッケージ
 ├─ analysis_options.yaml        … 静的解析ルール
 ├─ firebase.json                … Hosting（build/web を公開）・Firestore・エミュレーター設定
-├─ firebase_env.example.json    … 設定値のキー名の見本（値は空）
+├─ firebase_env.example.json    … 設定値のキー名の見本（値は空。APP_ENV は prod / dev）
 ├─ web/                         … PWA 関連
 │  ├─ index.html
 │  ├─ manifest.json             … アプリ名・アイコン・全画面起動
@@ -39,9 +39,10 @@ app/
 ├─ assets/images/               … アプリに同梱する画像（app_icon.png: ログイン画面のアイコン。tools/make_app_icon.java で生成）
 ├─ lib/
 │  ├─ main.dart                 … 起動処理（Firebase 初期化 → ProviderScope）
-│  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移）
+│  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移・テスト環境の帯）
 │  ├─ firebase_options.dart     … 設定値は --dart-define-from-file で受け取る
 │  ├─ core/                     … アプリ全体の土台
+│  │  ├─ config/                …   実行環境（本番 / テスト）
 │  │  ├─ firebase/              …   Firebase の各サービスの Provider
 │  │  ├─ router/                …   go_router の定義・タブの枠
 │  │  ├─ theme/                 …   テーマ
@@ -88,6 +89,7 @@ app/
   ```
 
 - `lib/firebase_options.dart` は `String.fromEnvironment` で値を読むだけなので、リポジトリに含めてよい。
+- 本番とテスト環境は別の Firebase プロジェクトにし、設定ファイルも環境ごとに分ける（[0011](../decisions/0011_separate_dev_project.md)）。設定ファイルの `APP_ENV`（`prod` / `dev`）で、アプリにテスト環境の表示を出すかが決まる。
 - 補足: Web の設定値はビルド後の JS に含まれ、ブラウザから見える。厳密な秘密ではないが、方針としてリポジトリには置かない。実際の保護は Firestore ルールと Authentication で行う。
 
 ## Firestore ルールのテスト

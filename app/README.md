@@ -13,6 +13,8 @@
 
 設定値はリポジトリに含めません。`firebase_env.example.json` をリポジトリ外にコピーして Firebase コンソールの値を記入し、そのパスを `--dart-define-from-file` で指定してください（以下のコマンドの `<設定ファイルのパス>`）。
 
+本番とテスト環境は別の Firebase プロジェクトです。設定ファイルも環境ごとに用意し、`APP_ENV` に `prod`（本番）か `dev`（テスト環境）を書きます。`dev` でビルドすると、画面の左上に「テスト」の帯が出ます。ふだんの開発・確認はテスト環境の設定ファイルで行ってください。
+
 ## よく使うコマンド（app/ で実行）
 
 ```bash
@@ -23,12 +25,30 @@ flutter run -d chrome --dart-define-from-file=<設定ファイルのパス>
 flutter test
 flutter analyze
 
-# 本番ビルド（build/web に出力）
+# ビルド（build/web に出力）
 flutter build web --dart-define-from-file=<設定ファイルのパス>
-
-# Firebase Hosting / Firestore ルールへデプロイ（プロジェクト ID は Firebase コンソールで確認）
-firebase deploy --project <プロジェクトID>
 ```
+
+## デプロイ（リポジトリ直下で実行）
+
+ビルドとデプロイは [tools/deploy.ps1](../tools/deploy.ps1) でまとめて行います。デプロイ先は設定ファイルの `FIREBASE_PROJECT_ID` で決まるので、ビルドに使った設定とデプロイ先が食い違うことはありません。
+
+```powershell
+# テスト環境へ
+./tools/deploy.ps1 -EnvFile <テスト環境の設定ファイルのパス>
+
+# 本番へ（実行前に確認を求めます）
+./tools/deploy.ps1 -EnvFile <本番の設定ファイルのパス>
+
+# 本番へ（対話できない環境で、確認を省くとき）
+./tools/deploy.ps1 -EnvFile <本番の設定ファイルのパス> -Yes
+
+# Hosting だけ・ルールだけをデプロイするとき
+./tools/deploy.ps1 -EnvFile <設定ファイルのパス> -Only hosting
+./tools/deploy.ps1 -EnvFile <設定ファイルのパス> -Only firestore
+```
+
+流れは「機能ブランチ → develop にマージ → テスト環境にデプロイして確認 → master にマージ → 本番にデプロイ」です。
 
 ## Firestore ルールのテスト（app/firebase/ で実行）
 

@@ -66,7 +66,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 | カテゴリの削除 | `CategoriesRepository.delete` | 所属アイテムを get → **バッチ** | 所属アイテムすべてに `categoryId: other`（更新者は変えない）、カテゴリを delete。「その他」は削除できない |
 | アイテムの追加 | `addItem` | add | `purchase: null`、`memo` は空でも文字列で保存、`barcodes`（なければ空の配列）、`createdAt`、更新者 |
 | アイテムの編集 | `updateItem` | update | 名前・カテゴリ・ステータス・メモ・`barcodes`（配列を丸ごと）・更新者。「十分」なら `purchase: null` |
-| 既存のアイテムへのバーコードの登録 | `addBarcode` | update | `barcodes` に `arrayUnion` で追加（更新者は変えない。[ADR 0012](../decisions/0012_barcode_with_mobile_scanner.md)） |
+| 既存のアイテムへのバーコードの登録 | `addBarcode` | update | `barcodes` に `arrayUnion` で追加（更新者は変えない。[ADR 0013](../decisions/0013_barcode_with_mobile_scanner.md)） |
 | アイテムの削除 | `deleteItem` | delete | ― |
 | ステータスの変更 | `changeStatus` | update | ステータス・更新者。「十分」なら `purchase: null` |
 | 担当宣言・カゴ済み | `claim` | **トランザクション** | `purchase`（`state`, `byUid`, `byName`, `at`） |
@@ -177,7 +177,7 @@ Firestore のデータから domain のクラスに変換するときの決ま�
   - すべての記録: `watchAll()`（`allHistoryProvider`）。購入履歴の画面で使う。
   - 1 つのアイテムの記録: `watchForItem(itemId)` は `itemId` が等しいものだけを購読する（`itemHistoryProvider`）。アイテム編集シートで使う。単一フィールドの条件なので複合インデックスは不要。
 - 並べ替え（`purchasedAt` の新しい順。保存中で日時が未確定のものは先頭）とアイテム名での絞り込みは、アプリ側で行う（`sortRecordsNewestFirst`。[ADR 0003](../decisions/0003_sort_on_client.md)）。
-- 削除: 「元に戻す」で自分の記録を消す（`revertPurchase`）のと、残す期間（1 年）を過ぎた記録をアプリを開いたときに消す（`deleteExpired`）のの 2 通り。境目は端末の時計のずれを見込んで 1 年と 1 日前（`expiryCutoff`）。ルールはサーバー時刻で 1 年を過ぎた記録だけを、誰でも消せるようにしている（[ADR 0011](../decisions/0011_purchase_history_cleanup_on_client.md)）。
+- 削除: 「元に戻す」で自分の記録を消す（`revertPurchase`）のと、残す期間（1 年）を過ぎた記録をアプリを開いたときに消す（`deleteExpired`）のの 2 通り。境目は端末の時計のずれを見込んで 1 年と 1 日前（`expiryCutoff`）。ルールはサーバー時刻で 1 年を過ぎた記録だけを、誰でも消せるようにしている（[ADR 0012](../decisions/0012_purchase_history_cleanup_on_client.md)）。
 - アイテムを削除しても記録は消さない（アイテム名は記録の時点のものを持つ）。
 
 ## 10. バーコード（`items.barcodes`）
@@ -185,4 +185,4 @@ Firestore のデータから domain のクラスに変換するときの決ま�
 - 形: `normalizeBarcode` でそろえた番号（JAN-8・JAN-13・ITF-14。UPC-A は先頭に 0 を付けた 13 桁）の配列。1 アイテム 10 個まで（`maxBarcodesPerItem`。ルールでも確認する）。
 - 同じ番号をほかのアイテムに登録しない。確認はアプリ側で、追加するとき・編集シートで保存するときに行う（`findItemByBarcode`）。
 - 探す: 読み取った番号が登録されているアイテムがあれば、在庫一覧の検索欄にその番号を入れる。検索は、名前・メモに含まれるか、バーコードの番号と等しいアイテムを出す。
-- 設計の判断は [ADR 0012](../decisions/0012_barcode_with_mobile_scanner.md)。
+- 設計の判断は [ADR 0013](../decisions/0013_barcode_with_mobile_scanner.md)。
