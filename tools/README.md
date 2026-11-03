@@ -1,11 +1,29 @@
 # 開発用スクリプト (tools)
 
-アプリ本体ではなく、ドキュメントの作成などに使うスクリプトを置くフォルダです。
+アプリ本体ではなく、デプロイやドキュメントの作成などに使うスクリプトを置くフォルダです。
 
 | スクリプト | 用途 |
 |---|---|
+| [deploy.ps1](deploy.ps1) | アプリをビルドし、設定ファイルに書かれた Firebase プロジェクト（本番 / テスト環境）へデプロイする |
 | [render_diagrams.ps1](render_diagrams.ps1) | design/ 配下の PlantUML（.puml）から SVG を生成する |
 | [make_app_icon.java](make_app_icon.java) | アプリアイコン（app/web/icons/）と、ログイン画面のアイコン（app/assets/images/app_icon.png）の PNG を生成する |
+
+## deploy.ps1
+
+`flutter build web` と `firebase deploy` をまとめて実行します。デプロイ先のプロジェクトは、ビルドに使う設定ファイルの `FIREBASE_PROJECT_ID` から決めるので、テスト環境の設定のまま本番にデプロイする、といった取り違えが起きません。設定ファイルの `APP_ENV` が `prod`（本番）のときは、実行前に確認を求めます。
+
+### 必要なもの
+
+- Flutter
+- Firebase CLI（`firebase login` 済み）
+
+### 実行（リポジトリ直下で）
+
+```powershell
+./tools/deploy.ps1 -EnvFile <設定ファイルのパス>
+```
+
+`-Only hosting` のように指定すると、その対象だけをデプロイします（省略時は Hosting と Firestore のルール・インデックスのすべて）。
 
 ## render_diagrams.ps1
 
