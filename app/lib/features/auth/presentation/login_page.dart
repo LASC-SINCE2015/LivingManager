@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_env.dart';
 import '../data/auth_repository.dart';
 
 /// ログイン画面
@@ -75,9 +76,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: FilledButton.icon(
                     onPressed: _busy ? null : _signIn,
                     icon: const Icon(Icons.login),
-                    label: const Text('Googleでログイン'),
+                    // デモは Google を使わず、デモ用のユーザーで入る
+                    label: Text(AppEnv.isDemo ? 'デモを始める' : 'Googleでログイン'),
                   ),
                 ),
+                if (AppEnv.isDemo) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'お試し版です。データはこの画面の中だけで動き、'
+                    '読み込み直すと元のサンプルに戻ります。',
+                    style: theme.textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
                 if (_busy) ...[
                   const SizedBox(height: 16),
                   const LinearProgressIndicator(),
