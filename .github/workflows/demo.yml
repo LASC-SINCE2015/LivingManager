@@ -1,0 +1,55 @@
+# デモ（お試し版）を GitHub Pages に公開する。
+#
+# デモは Firebase を使わず、ブラウザのメモリ上のサンプルデータで動く（APP_ENV=demo）。
+# 秘密の設定値は使わないので、Secrets は不要。
+# master に push されたとき（本番のリリースと同じタイミング）と、Actions の画面から手で実行したときに動く。
+#
+# 初回だけ、リポジトリの Settings → Pages → Build and deployment の Source を
+# 「GitHub Actions」にしておく。公開先は https://<ユーザー名>.github.io/<リポジトリ名>/ になる。
+
+name: デモの公開
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: demo-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # 手元の開発環境と同じ版にそろえる
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: ビルドする
+        # Pages はリポジトリ名のパスの下に置かれるため、base-href をそれに合わせる
+        run: ./tools/build_demo.sh --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

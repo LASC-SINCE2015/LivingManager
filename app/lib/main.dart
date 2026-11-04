@@ -4,10 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/config/app_env.dart';
+import 'core/demo/demo_backend.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // デモは Firebase につながず、メモリ上のサンプルデータで動かす
+  if (AppEnv.isDemo) {
+    runApp(
+      ProviderScope(
+        overrides: await demoOverrides(),
+        child: const LivingManagerApp(),
+      ),
+    );
+    return;
+  }
   await Firebase.initializeApp(options: DefaultFirebaseOptions.web);
   // 電波が弱い場所でも、最後に取得した内容を表示・操作できるようにする
   FirebaseFirestore.instance.settings = const Settings(
