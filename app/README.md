@@ -15,6 +15,23 @@
 
 本番とテスト環境は別の Firebase プロジェクトです。設定ファイルも環境ごとに用意し、`APP_ENV` に `prod`（本番）か `dev`（テスト環境）を書きます。`dev` でビルドすると、画面の左上に「テスト」の帯が出ます。ふだんの開発・確認はテスト環境の設定ファイルで行ってください。
 
+## デモ（お試し版）
+
+`APP_ENV` を `demo` にすると、Firebase につながずに、ブラウザのメモリ上のサンプルデータで動きます（[lib/core/demo/demo_backend.dart](lib/core/demo/demo_backend.dart)）。ログインは Google を使わずデモ用のユーザーで入り、読み込み直すとサンプルの状態に戻ります。秘密の設定値は不要なので、設定ファイルはリポジトリ内の `demo_env.json` を使います。
+
+```bash
+# デモを起動（デバッグ実行）
+flutter run -d chrome --dart-define-from-file=demo_env.json
+```
+
+デモの差し替えに使うテスト用のライブラリは、そのままではリリースビルドで動きません（起動時にエラーになる）。リリースビルドは、リポジトリ直下で [tools/build_demo.sh](../tools/build_demo.sh) を使ってください（Windows では Git Bash で実行）。出力先は `build/web` です。
+
+```bash
+./tools/build_demo.sh
+```
+
+master に push すると、GitHub Actions（[.github/workflows/demo.yml](../.github/workflows/demo.yml)）がデモを GitHub Pages に公開します。
+
 ## よく使うコマンド（app/ で実行）
 
 ```bash

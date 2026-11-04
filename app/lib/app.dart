@@ -12,18 +12,29 @@ class LivingManagerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: AppEnv.isDev ? 'おうちストック（テスト）' : 'おうちストック',
+      title: switch (AppEnv.current) {
+        AppEnv.dev => 'おうちストック（テスト）',
+        AppEnv.demo => 'おうちストック（デモ）',
+        AppEnv.prod => 'おうちストック',
+      },
       theme: AppTheme.light,
       routerConfig: ref.watch(appRouterProvider),
-      // テスト環境では、本番と取り違えないよう左上に「テスト」の帯を出す
-      builder: AppEnv.isDev
-          ? (context, child) => Banner(
-                message: 'テスト',
-                location: BannerLocation.topStart,
-                color: Colors.deepOrange,
-                child: child!,
-              )
-          : null,
+      // テスト環境・デモでは、本番と取り違えないよう左上に帯を出す
+      builder: switch (AppEnv.current) {
+        AppEnv.dev => (context, child) => Banner(
+          message: 'テスト',
+          location: BannerLocation.topStart,
+          color: Colors.deepOrange,
+          child: child!,
+        ),
+        AppEnv.demo => (context, child) => Banner(
+          message: 'デモ',
+          location: BannerLocation.topStart,
+          color: Colors.indigo,
+          child: child!,
+        ),
+        AppEnv.prod => null,
+      },
     );
   }
 }

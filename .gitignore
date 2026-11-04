@@ -28,3 +28,6 @@ Thumbs.db
 
 # Firebase のプロジェクト ID（デプロイ時に --project で指定する）
 .firebaserc
+
+# デモのビルド時だけ一時的に作る（tools/build_demo.sh）
+pubspec_overrides.yaml

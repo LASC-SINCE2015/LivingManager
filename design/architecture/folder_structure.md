@@ -15,7 +15,7 @@
 （リポジトリ直下）
 ├─ README.md
 ├─ .gitignore
-├─ .github/workflows/           … GitHub Actions（develop・master へのマージで自動デプロイ。deploy.yml）
+├─ .github/workflows/           … GitHub Actions（develop・master へのマージで自動デプロイ。deploy.yml / master へのマージでデモを GitHub Pages に公開。demo.yml）
 ├─ spec/                        … 仕様書（何を作るか）
 ├─ design/                      … 設計書（どう作るか）。用途別のフォルダに分ける（design/README.md）
 ├─ testing/                     … 確認内容と確認結果の記録
@@ -39,11 +39,12 @@ app/
 │  └─ icons/                    … ホーム画面用・iPhone 用・タブ用のアイコン（tools/make_app_icon.java で生成。ファイル名に版を入れる）
 ├─ assets/images/               … アプリに同梱する画像（app_icon.png: ログイン画面のアイコン。tools/make_app_icon.java で生成）
 ├─ lib/
-│  ├─ main.dart                 … 起動処理（Firebase 初期化 → ProviderScope）
+│  ├─ main.dart                 … 起動処理（Firebase 初期化 → ProviderScope。デモは Firebase を差し替える）
 │  ├─ app.dart                  … MaterialApp.router（テーマ・画面遷移・テスト環境の帯）
 │  ├─ firebase_options.dart     … 設定値は --dart-define-from-file で受け取る
 │  ├─ core/                     … アプリ全体の土台
-│  │  ├─ config/                …   実行環境（本番 / テスト）
+│  │  ├─ config/                …   実行環境（本番 / テスト / デモ）
+│  │  ├─ demo/                  …   デモ用の Firebase の差し替え（メモリ上の Firestore・認証とサンプルデータ）
 │  │  ├─ firebase/              …   Firebase の各サービスの Provider
 │  │  ├─ router/                …   go_router の定義・タブの枠
 │  │  ├─ theme/                 …   テーマ
